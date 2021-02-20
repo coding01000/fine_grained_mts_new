@@ -8,7 +8,15 @@ Row::Row(uint64_t primary_ley, std::vector<void *> column_values, uint64_t event
     this->next = NULL;
 }
 
-Row::Row() {}
+Row::Row() {
+    this->next = NULL;
+}
+
+Row::~Row() {
+    for (int i=0;i<column_values.size();i++){
+        delete column_values[i];
+    }
+}
 
 //void Row::print_all() {
 //    printf("column value: ");
@@ -16,6 +24,24 @@ Row::Row() {}
 //        printf("%")
 //    }
 //}
+
+Hash_Header::Hash_Header() {
+    this->next = NULL;
+}
+
+void Hash_Header::push_row(Row *row) {
+    std::unique_lock<std::mutex> lock(mu);
+
+    Row * header = this->next;
+    if (header && (row->event_time==header->event_time)){
+        row->next = header->next;
+        this->next = row;
+        delete header;
+    }else{
+        row->next = header;
+        this->next = row;
+    }
+}
 
 Table::Table(std::string table_name, std::vector<std::string> column_names, std::vector<uint8_t> column_width) {
     this->table_name = table_name;
@@ -25,14 +51,23 @@ Table::Table(std::string table_name, std::vector<std::string> column_names, std:
 
 Table::Table() {}
 
-uint8_t Table::insert_row(Row row) {
-    std::unordered_map<int, Row>::iterator it = this->rows.find(row.primary_ley);
+Table::~Table() {}
+
+uint8_t Table::insert_row(Row *row) {
+    std::unordered_map<int, Hash_Header *>::iterator it = this->rows.find(row->primary_ley);
     if(it == this->rows.end()){
-        printf("xxxxxxxxxxxxxx%d", row.primary_ley);
-        this->rows[row.primary_ley] = row;
+        Hash_Header *hash_header = new Hash_Header();
+        this->rows[row->primary_ley] = hash_header;
+        hash_header->push_row(row);
     }else{
-        printf("aaaaaa %s aaaaaa%d",(uint8_t*)it->second.column_values[1], row.primary_ley);
-        row.next = &it->second;
-        it->second = row;
+        //如果是同一个时间戳的，那么就替换，不用插入
+        it->second->push_row(row);
+//        if (row->event_time==it->second->event_time){
+//            it->second = row;
+//        }else{
+//            row->next = it->second;
+//            it->second = row;
+//        }
     }
+    return 0;
 }

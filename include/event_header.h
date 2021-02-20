@@ -25,9 +25,9 @@
 //FED
 #define FORMAT_V 21
 
-#define Insert_Event 30
-#define Update_Event 31
-#define Delete_Event 32
+#define Insert_Event_TYPE 30
+#define Update_Event_TYPE 31
+#define Delete_Event_TYPE 32
 
 #define FED_BINLOG_FORMAT 2
 #define FED_MYSQL_FORMAT 52
