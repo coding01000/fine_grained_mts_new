@@ -1,10 +1,9 @@
 #include <mysql/mysql.h>
 #include <iostream>
-#include <mysql/field_types.h>
-#include <mysql/mysql/client_plugin.h>
 #include <string.h>
 #include <string>
-#include "binlog_event.h"
+#include "binary_log.h"
+//#include "mysql/mysql_com.h"
 
 
 int main()
@@ -14,7 +13,7 @@ int main()
 
     rpl.start_position = 4U;
     std::string file_name;
-    
+    binary_log::Format_description_event *fde1;
     mysql = mysql_init(nullptr);
 
     mysql = mysql_real_connect(mysql, "10.24.10.113", "ssh", "ssh",
@@ -58,9 +57,25 @@ int main()
             break;
         }
         fprintf(stderr, "Event received of size %lu.\n", rpl.size);
+        printf("lll\n");
         binary_log::Log_event_type type = (binary_log::Log_event_type)rpl.buffer[1 + EVENT_TYPE_OFFSET];
         if (type == binary_log::WRITE_ROWS_EVENT){
             printf("WRITE_ROWS_EVENTS!\n");
+            printf("-----%d---%d\n",(fde1->get_event_type()==binary_log::FORMAT_DESCRIPTION_EVENT),
+                   fde1->header()->when);
+            auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde1);
+            printf("-----%d---%d\n",(ev->get_event_type()==binary_log::WRITE_ROWS_EVENT),
+                   ev->header()->when);
+        }else if (type == binary_log::FORMAT_DESCRIPTION_EVENT){
+            printf("FORMAT_DESCRIPTION_EVENT!\n");
+            binary_log::Format_description_event fde = binary_log::Format_description_event(4, "8.017");
+            char * buf = ( char *)malloc(sizeof(char *)*(rpl.size+1));
+            memcpy(buf, rpl.buffer + 1, rpl.size-1);
+            fde1 = new binary_log::Format_description_event(reinterpret_cast<const char *>(rpl.buffer + 1), &fde);
+            printf("-----%d---%d\n",(fde1->get_event_type()==binary_log::FORMAT_DESCRIPTION_EVENT),
+                   fde1->header()->when);
+//            fde1.print_event_info(std::cout);
+//            std::cout<<(fde1.get_event_type()==binary_log::FORMAT_DESCRIPTION_EVENT)<<std::endl;
         }
     }
 

@@ -4,6 +4,7 @@ PROJECT(fine_grained_mts)
 
 include_directories(./include
         /usr/local/opt/mysql-client/include
+        ./binlog/include
 #        /usr/local/mysql-connector-c++/include/
         )
 
@@ -14,6 +15,7 @@ link_libraries(mysqlclient)
 ADD_SUBDIRECTORY(./table)
 ADD_SUBDIRECTORY(./utils)
 ADD_SUBDIRECTORY(./thread_pool)
+ADD_SUBDIRECTORY(./binlog)
 
 ADD_EXECUTABLE(fine_grained_mts test.cc)
 
@@ -23,4 +25,5 @@ TARGET_LINK_LIBRARIES(fine_grained_mts
         table_lib
         utils_lib
         thread_pool_lib
+        binlog_lib
         )
