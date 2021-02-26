@@ -1,8 +1,9 @@
-#include <mysql/mysql.h>
+#include "binary_log.h"
 #include <iostream>
 #include <string.h>
 #include <string>
-#include "binary_log.h"
+
+//#include <mysql/m>
 //#include "mysql/mysql_com.h"
 
 
@@ -64,14 +65,16 @@ int main()
             printf("-----%d---%d\n",(fde1->get_event_type()==binary_log::FORMAT_DESCRIPTION_EVENT),
                    fde1->header()->when);
             auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde1);
+            ev->reader().read<uint8_t>();
             printf("-----%d---%d\n",(ev->get_event_type()==binary_log::WRITE_ROWS_EVENT),
-                   ev->header()->when);
+                   ev->reader().read<uint64_t>());
         }else if (type == binary_log::FORMAT_DESCRIPTION_EVENT){
             printf("FORMAT_DESCRIPTION_EVENT!\n");
             binary_log::Format_description_event fde = binary_log::Format_description_event(4, "8.017");
             char * buf = ( char *)malloc(sizeof(char *)*(rpl.size+1));
             memcpy(buf, rpl.buffer + 1, rpl.size-1);
             fde1 = new binary_log::Format_description_event(reinterpret_cast<const char *>(rpl.buffer + 1), &fde);
+            fde1->print_event_info(std::cout);
             printf("-----%d---%d\n",(fde1->get_event_type()==binary_log::FORMAT_DESCRIPTION_EVENT),
                    fde1->header()->when);
 //            fde1.print_event_info(std::cout);

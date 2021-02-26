@@ -112,14 +112,8 @@ using ha_checksum = std::uint32_t;
 */
 inline ha_checksum my_checksum(ha_checksum crc, const unsigned char *pos,
                                size_t length) {
-#ifdef HAVE_ARMV8_CRC32_INTRINSIC
-  assert(mycrc32::auxv_at_hwcap);
-  if (mycrc32::auxv_at_hwcap)
-    return mycrc32::PunnedCrc32<std::uint64_t>(crc, pos, length);
-#endif  // HAVE_ARMV8_CRC32_INTRINSIC
   static_assert(std::is_convertible<uLong, ha_checksum>::value,
                 "uLong cannot be converted to ha_checksum");
-  assert(crc32_z(crc, pos, length) <= std::numeric_limits<ha_checksum>::max());
   return crc32_z(crc, pos, length);
 }
 #endif /* not defined(MY_CEHCKSUM_INCLUDED) */

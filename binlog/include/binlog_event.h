@@ -1,3 +1,25 @@
+/* Copyright (c) 2011, 2020, Oracle and/or its affiliates.
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License, version 2.0,
+   as published by the Free Software Foundation.
+
+   This program is also distributed with certain software (including
+   but not limited to OpenSSL) that is licensed under separate terms,
+   as designated in a particular file or component or in included license
+   documentation.  The authors of MySQL hereby grant you an additional
+   permission to link the program and your derivative works with the
+   separately licensed software that they have included with MySQL.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License, version 2.0, for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+
 /**
   @addtogroup Replication
   @{
@@ -13,16 +35,21 @@
 #ifndef BINLOG_EVENT_INCLUDED
 #define BINLOG_EVENT_INCLUDED
 
-#include <stdlib.h>
+//#include <stdlib.h>
 #include <sys/types.h>
 #include <zlib.h>  //for checksum calculations
 #include <climits>
 #include <cstdio>
 #include <iostream>
+#include <zlib.h>
 #include "event_reader.h"
-//#include "my_checksum.h"
-//#include "my_io.h"
+#include "my_checksum.h"
+
+#if defined(_WIN32)
+#include <Winsock2.h>
+#else
 #include <sys/times.h>
+#endif
 /*
   The symbols below are a part of the common definitions between
   the MySQL server and the client. Since they should not be a part of
@@ -142,27 +169,27 @@ const uint32_t UNKNOWN_SERVER_VERSION = 0;
 */
 inline void do_server_version_split(const char *version,
                                     unsigned char split_versions[3]) {
-  const char *p = version;
-  char *r;
-  unsigned long number;
-  for (unsigned int i = 0; i <= 2; i++) {
-    number = strtoul(p, &r, 10);
-    /*
-      It is an invalid version if any version number greater than 255 or
-      first number is not followed by '.'.
-    */
-    if (number < 256 && (*r == '.' || i != 0))
-      split_versions[i] = static_cast<unsigned char>(number);
-    else {
-      split_versions[0] = 0;
-      split_versions[1] = 0;
-      split_versions[2] = 0;
-      break;
-    }
+    const char *p = version;
+    char *r;
+    unsigned long number;
+    for (unsigned int i = 0; i <= 2; i++) {
+        number = strtoul(p, &r, 10);
+        /*
+          It is an invalid version if any version number greater than 255 or
+          first number is not followed by '.'.
+        */
+        if (number < 256 && (*r == '.' || i != 0))
+            split_versions[i] = static_cast<unsigned char>(number);
+        else {
+            split_versions[0] = 0;
+            split_versions[1] = 0;
+            split_versions[2] = 0;
+            break;
+        }
 
-    p = r;
-    if (*r == '.') p++;  // skip the dot
-  }
+        p = r;
+        if (*r == '.') p++;  // skip the dot
+    }
 }
 
 /**
@@ -173,12 +200,12 @@ inline void do_server_version_split(const char *version,
    @return               The server version in the format XXYYZZ
 */
 inline uint32_t do_server_version_int(const char *version) {
-  unsigned char version_split[3];
-  do_server_version_split(version, version_split);
-  uint32_t ret = static_cast<uint32_t>(version_split[0]) * 10000 +
-                 static_cast<uint32_t>(version_split[1]) * 100 +
-                 static_cast<uint32_t>(version_split[2]);
-  return ret;
+    unsigned char version_split[3];
+    do_server_version_split(version, version_split);
+    uint32_t ret = static_cast<uint32_t>(version_split[0]) * 10000 +
+                   static_cast<uint32_t>(version_split[1]) * 100 +
+                   static_cast<uint32_t>(version_split[2]);
+    return ret;
 }
 
 /**
@@ -191,7 +218,7 @@ inline uint32_t do_server_version_int(const char *version) {
   @return               The version product of the server
 */
 inline unsigned long version_product(const unsigned char *version_split) {
-  return ((version_split[0] * 256 + version_split[1]) * 256 + version_split[2]);
+    return ((version_split[0] * 256 + version_split[1]) * 256 + version_split[2]);
 }
 
 /**
@@ -234,107 +261,107 @@ namespace binary_log {
 /**
   Enumeration type for the different types of log events.
 */
-enum Log_event_type {
-  /**
-    Every time you add a type, you have to
-    - Assign it a number explicitly. Otherwise it will cause trouble
-      if a event type before is deprecated and removed directly from
-      the enum.
-    - Fix Format_description_event::Format_description_event().
-  */
-  UNKNOWN_EVENT = 0,
-  /*
-    Deprecated since mysql 8.0.2. It is just a placeholder,
-    should not be used anywhere else.
-  */
-  START_EVENT_V3 = 1,
-  QUERY_EVENT = 2,
-  STOP_EVENT = 3,
-  ROTATE_EVENT = 4,
-  INTVAR_EVENT = 5,
+    enum Log_event_type {
+        /**
+          Every time you add a type, you have to
+          - Assign it a number explicitly. Otherwise it will cause trouble
+            if a event type before is deprecated and removed directly from
+            the enum.
+          - Fix Format_description_event::Format_description_event().
+        */
+        UNKNOWN_EVENT = 0,
+        /*
+          Deprecated since mysql 8.0.2. It is just a placeholder,
+          should not be used anywhere else.
+        */
+        START_EVENT_V3 = 1,
+        QUERY_EVENT = 2,
+        STOP_EVENT = 3,
+        ROTATE_EVENT = 4,
+        INTVAR_EVENT = 5,
 
-  SLAVE_EVENT = 7,
+        SLAVE_EVENT = 7,
 
-  APPEND_BLOCK_EVENT = 9,
-  DELETE_FILE_EVENT = 11,
+        APPEND_BLOCK_EVENT = 9,
+        DELETE_FILE_EVENT = 11,
 
-  RAND_EVENT = 13,
-  USER_VAR_EVENT = 14,
-  FORMAT_DESCRIPTION_EVENT = 15,
-  XID_EVENT = 16,
-  BEGIN_LOAD_QUERY_EVENT = 17,
-  EXECUTE_LOAD_QUERY_EVENT = 18,
+        RAND_EVENT = 13,
+        USER_VAR_EVENT = 14,
+        FORMAT_DESCRIPTION_EVENT = 15,
+        XID_EVENT = 16,
+        BEGIN_LOAD_QUERY_EVENT = 17,
+        EXECUTE_LOAD_QUERY_EVENT = 18,
 
-  TABLE_MAP_EVENT = 19,
+        TABLE_MAP_EVENT = 19,
 
-  /**
-    The V1 event numbers are used from 5.1.16 until mysql-5.6.
-  */
-  WRITE_ROWS_EVENT_V1 = 23,
-  UPDATE_ROWS_EVENT_V1 = 24,
-  DELETE_ROWS_EVENT_V1 = 25,
+        /**
+          The V1 event numbers are used from 5.1.16 until mysql-5.6.
+        */
+        WRITE_ROWS_EVENT_V1 = 23,
+        UPDATE_ROWS_EVENT_V1 = 24,
+        DELETE_ROWS_EVENT_V1 = 25,
 
-  /**
-    Something out of the ordinary happened on the master
-   */
-  INCIDENT_EVENT = 26,
+        /**
+          Something out of the ordinary happened on the master
+         */
+        INCIDENT_EVENT = 26,
 
-  /**
-    Heartbeat event to be send by master at its idle time
-    to ensure master's online status to slave
-  */
-  HEARTBEAT_LOG_EVENT = 27,
+        /**
+          Heartbeat event to be send by master at its idle time
+          to ensure master's online status to slave
+        */
+        HEARTBEAT_LOG_EVENT = 27,
 
-  /**
-    In some situations, it is necessary to send over ignorable
-    data to the slave: data that a slave can handle in case there
-    is code for handling it, but which can be ignored if it is not
-    recognized.
-  */
-  IGNORABLE_LOG_EVENT = 28,
-  ROWS_QUERY_LOG_EVENT = 29,
+        /**
+          In some situations, it is necessary to send over ignorable
+          data to the slave: data that a slave can handle in case there
+          is code for handling it, but which can be ignored if it is not
+          recognized.
+        */
+        IGNORABLE_LOG_EVENT = 28,
+        ROWS_QUERY_LOG_EVENT = 29,
 
-  /** Version 2 of the Row events */
-  WRITE_ROWS_EVENT = 30,
-  UPDATE_ROWS_EVENT = 31,
-  DELETE_ROWS_EVENT = 32,
+        /** Version 2 of the Row events */
+        WRITE_ROWS_EVENT = 30,
+        UPDATE_ROWS_EVENT = 31,
+        DELETE_ROWS_EVENT = 32,
 
-  GTID_LOG_EVENT = 33,
-  ANONYMOUS_GTID_LOG_EVENT = 34,
+        GTID_LOG_EVENT = 33,
+        ANONYMOUS_GTID_LOG_EVENT = 34,
 
-  PREVIOUS_GTIDS_LOG_EVENT = 35,
+        PREVIOUS_GTIDS_LOG_EVENT = 35,
 
-  TRANSACTION_CONTEXT_EVENT = 36,
+        TRANSACTION_CONTEXT_EVENT = 36,
 
-  VIEW_CHANGE_EVENT = 37,
+        VIEW_CHANGE_EVENT = 37,
 
-  /* Prepared XA transaction terminal event similar to Xid */
-  XA_PREPARE_LOG_EVENT = 38,
+        /* Prepared XA transaction terminal event similar to Xid */
+        XA_PREPARE_LOG_EVENT = 38,
 
-  /**
-    Extension of UPDATE_ROWS_EVENT, allowing partial values according
-    to binlog_row_value_options.
-  */
-  PARTIAL_UPDATE_ROWS_EVENT = 39,
+        /**
+          Extension of UPDATE_ROWS_EVENT, allowing partial values according
+          to binlog_row_value_options.
+        */
+        PARTIAL_UPDATE_ROWS_EVENT = 39,
 
-  TRANSACTION_PAYLOAD_EVENT = 40,
+        TRANSACTION_PAYLOAD_EVENT = 40,
 
-  /**
-    Add new events here - right above this comment!
-    Existing events (except ENUM_END_EVENT) should never change their numbers
-  */
-  ENUM_END_EVENT /* end marker */
-};
+        /**
+          Add new events here - right above this comment!
+          Existing events (except ENUM_END_EVENT) should never change their numbers
+        */
+        ENUM_END_EVENT /* end marker */
+    };
 
 /**
   Struct to pass basic information about a event: type, query, is it ignorable
 */
-struct Log_event_basic_info {
-  Log_event_type event_type{UNKNOWN_EVENT};
-  const char *query{nullptr};
-  size_t query_length{0};
-  bool ignorable_event{false};
-};
+    struct Log_event_basic_info {
+        Log_event_type event_type{UNKNOWN_EVENT};
+        const char *query{nullptr};
+        size_t query_length{0};
+        bool ignorable_event{false};
+    };
 
 /**
  The length of the array server_version, which is used to store the version
@@ -379,22 +406,22 @@ struct Log_event_basic_info {
 /**
   Enumeration spcifying checksum algorithm used to encode a binary log event
 */
-enum enum_binlog_checksum_alg {
-  /**
-    Events are without checksum though its generator is checksum-capable
-    New Master (NM).
-  */
-  BINLOG_CHECKSUM_ALG_OFF = 0,
-  /** CRC32 of zlib algorithm */
-  BINLOG_CHECKSUM_ALG_CRC32 = 1,
-  /** the cut line: valid alg range is [1, 0x7f] */
-  BINLOG_CHECKSUM_ALG_ENUM_END,
-  /**
-    Special value to tag undetermined yet checksum or events from
-    checksum-unaware servers
-  */
-  BINLOG_CHECKSUM_ALG_UNDEF = 255
-};
+    enum enum_binlog_checksum_alg {
+        /**
+          Events are without checksum though its generator is checksum-capable
+          New Master (NM).
+        */
+        BINLOG_CHECKSUM_ALG_OFF = 0,
+        /** CRC32 of zlib algorithm */
+        BINLOG_CHECKSUM_ALG_CRC32 = 1,
+        /** the cut line: valid alg range is [1, 0x7f] */
+        BINLOG_CHECKSUM_ALG_ENUM_END,
+        /**
+          Special value to tag undetermined yet checksum or events from
+          checksum-unaware servers
+        */
+        BINLOG_CHECKSUM_ALG_UNDEF = 255
+    };
 
 #define CHECKSUM_CRC32_SIGNATURE_LEN 4
 
@@ -414,16 +441,16 @@ enum enum_binlog_checksum_alg {
 
   @return checksum for a memory block
 */
-//inline uint32_t checksum_crc32(uint32_t crc, const unsigned char *pos,
-//                               size_t length) {
-//  return my_checksum(crc, pos, length);
-//}
+    inline uint32_t checksum_crc32(uint32_t crc, const unsigned char *pos,
+                                   size_t length) {
+        return my_checksum(crc, pos, length);
+    }
 
 /*
   Forward declaration of Format_description_event class to be used in class
   Log_event_header
 */
-class Format_description_event;
+    class Format_description_event;
 
 /**
   @class Log_event_footer
@@ -465,74 +492,74 @@ class Format_description_event;
         that. Therefore, the checksum value is not required to be stored in the
         instance as a class member.
 */
-class Log_event_footer {
- public:
-  /**
-    Wrapper to call get_checksum_alg(const char *, ulong) function based on the
-    event reader object (which knows both buffer and buffer length).
+    class Log_event_footer {
+    public:
+        /**
+          Wrapper to call get_checksum_alg(const char *, ulong) function based on the
+          event reader object (which knows both buffer and buffer length).
 
-    @param[in] reader The Event_reader object associated to the event buffer
-                      of the FD event.
+          @param[in] reader The Event_reader object associated to the event buffer
+                            of the FD event.
 
-    @retval BINLOG_CHECKSUM_ALG_UNDEF originator is checksum-unaware
-                                      (effectively no checksum).
-    @retval BINLOG_CHECKSUM_ALG_OFF no checksum.
-    @retval other the actual checksum algorithm descriptor.
-  */
-  static enum_binlog_checksum_alg get_checksum_alg(Event_reader &reader);
+          @retval BINLOG_CHECKSUM_ALG_UNDEF originator is checksum-unaware
+                                            (effectively no checksum).
+          @retval BINLOG_CHECKSUM_ALG_OFF no checksum.
+          @retval other the actual checksum algorithm descriptor.
+        */
+        static enum_binlog_checksum_alg get_checksum_alg(Event_reader &reader);
 
-  /**
-    The method returns the checksum algorithm used to checksum the binary log
-    from a Format Description Event serialized buffer.
+        /**
+          The method returns the checksum algorithm used to checksum the binary log
+          from a Format Description Event serialized buffer.
 
-    For MySQL server versions < 5.6, the algorithm is undefined.
+          For MySQL server versions < 5.6, the algorithm is undefined.
 
-    @param buf buffer holding serialized FD event.
-    @param len length of the event buffer.
+          @param buf buffer holding serialized FD event.
+          @param len length of the event buffer.
 
-    @retval BINLOG_CHECKSUM_ALG_UNDEF originator is checksum-unaware
-                                      (effectively no checksum).
-    @retval BINLOG_CHECKSUM_ALG_OFF no checksum.
-    @retval other the actual checksum algorithm descriptor.
-  */
-  static enum_binlog_checksum_alg get_checksum_alg(const char *buf,
-                                                   unsigned long len);
+          @retval BINLOG_CHECKSUM_ALG_UNDEF originator is checksum-unaware
+                                            (effectively no checksum).
+          @retval BINLOG_CHECKSUM_ALG_OFF no checksum.
+          @retval other the actual checksum algorithm descriptor.
+        */
+        static enum_binlog_checksum_alg get_checksum_alg(const char *buf,
+                                                         unsigned long len);
 
-  static bool event_checksum_test(unsigned char *buf, unsigned long event_len,
-                                  enum_binlog_checksum_alg alg);
+        static bool event_checksum_test(unsigned char *buf, unsigned long event_len,
+                                        enum_binlog_checksum_alg alg);
 
-  /* Constructors */
-  Log_event_footer() : checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF) {}
+        /* Constructors */
+        Log_event_footer() : checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF) {}
 
-  /**
-    This ctor will create a new object of Log_event_footer, and will adjust
-    the event reader buffer size with respect to CRC usage.
+        /**
+          This ctor will create a new object of Log_event_footer, and will adjust
+          the event reader buffer size with respect to CRC usage.
 
-    @param reader the Event_reader containing the serialized event (including
-                  header, event data and optional checksum information).
-    @param event_type the type of the event the footer belongs to.
-    @param fde An FDE event, used to get information about CRC.
-  */
-  Log_event_footer(Event_reader &reader, Log_event_type event_type,
-                   const Format_description_event *fde);
+          @param reader the Event_reader containing the serialized event (including
+                        header, event data and optional checksum information).
+          @param event_type the type of the event the footer belongs to.
+          @param fde An FDE event, used to get information about CRC.
+        */
+        Log_event_footer(Event_reader &reader, Log_event_type event_type,
+                         const Format_description_event *fde);
 
-  explicit Log_event_footer(enum_binlog_checksum_alg checksum_alg_arg)
-      : checksum_alg(checksum_alg_arg) {}
+        explicit Log_event_footer(enum_binlog_checksum_alg checksum_alg_arg)
+                : checksum_alg(checksum_alg_arg) {}
 
-  /**
-     @verbatim
-     Master side:
-     The value is set by caller of FD(Format Description) constructor
-     In the FD case it's propagated into the last byte
-     of post_header_len[].
-     Slave side:
-     On the slave side the value is assigned from post_header_len[last]
-     of the last seen FD event.
-     @endverbatim
-     TODO(WL#7546): Revisit this comment when encoder is moved in libbinlogevent
-  */
-  enum_binlog_checksum_alg checksum_alg;
-};
+        /**
+           @verbatim
+           Master side:
+           The value is set by caller of FD(Format Description) constructor
+           In the FD case it's propagated into the last byte
+           of post_header_len[].
+           Slave side:
+           On the slave side the value is assigned from post_header_len[last]
+           of the last seen FD event.
+           @endverbatim
+           TODO(WL#7546): Revisit this comment when encoder is moved in libbinlogevent
+        */
+        enum_binlog_checksum_alg checksum_alg;
+    };
 
 /**
   @class Log_event_header
@@ -601,99 +628,99 @@ class Log_event_footer {
   Summing up the numbers above, we see that the total size of the
   common header is 19 bytes.
 */
-class Log_event_header {
- public:
-  /*
-    Timestamp on the master(for debugging and replication of
-    NOW()/TIMESTAMP).  It is important for queries and LOAD DATA
-    INFILE. This is set at the event's creation time, except for Query
-    and Load (and other events) events where this is set at the query's
-    execution time, which guarantees good replication (otherwise, we
-    could have a query and its event with different timestamps).
-  */
-  struct timeval when;
+    class Log_event_header {
+    public:
+        /*
+          Timestamp on the master(for debugging and replication of
+          NOW()/TIMESTAMP).  It is important for queries and LOAD DATA
+          INFILE. This is set at the event's creation time, except for Query
+          and Load (and other events) events where this is set at the query's
+          execution time, which guarantees good replication (otherwise, we
+          could have a query and its event with different timestamps).
+        */
+        struct timeval when;
 
-  /**
-    Event type extracted from the header. In the server, it is decoded
-    by read_log_event(), but adding here for complete decoding.
-  */
-  Log_event_type type_code;
+        /**
+          Event type extracted from the header. In the server, it is decoded
+          by read_log_event(), but adding here for complete decoding.
+        */
+        Log_event_type type_code;
 
-  /*
-    The server id read from the Binlog.
-  */
-  unsigned int unmasked_server_id;
+        /*
+          The server id read from the Binlog.
+        */
+        unsigned int unmasked_server_id;
 
-  /* Length of an event, which will be written by write() function */
-  size_t data_written;
+        /* Length of an event, which will be written by write() function */
+        size_t data_written;
 
-  /*
-    The offset in the log where this event originally appeared (it is
-    preserved in relay logs, making SHOW SLAVE STATUS able to print
-    coordinates of the event in the master's binlog).
-  */
-  unsigned long long log_pos;
+        /*
+          The offset in the log where this event originally appeared (it is
+          preserved in relay logs, making SHOW SLAVE STATUS able to print
+          coordinates of the event in the master's binlog).
+        */
+        unsigned long long log_pos;
 
-  /*
-    16 or less flags depending on the version of the binary log.
-    See the definitions above for LOG_EVENT_TIME_F,
-    LOG_EVENT_FORCED_ROTATE_F, LOG_EVENT_THREAD_SPECIFIC_F, and
-    LOG_EVENT_SUPPRESS_USE_F for notes.
-  */
-  uint16_t flags;
+        /*
+          16 or less flags depending on the version of the binary log.
+          See the definitions above for LOG_EVENT_TIME_F,
+          LOG_EVENT_FORCED_ROTATE_F, LOG_EVENT_THREAD_SPECIFIC_F, and
+          LOG_EVENT_SUPPRESS_USE_F for notes.
+        */
+        uint16_t flags;
 
-  /**
-    The following type definition is to be used whenever data is placed
-    and manipulated in a common buffer. Use this typedef for buffers
-    that contain data containing binary and character data.
-  */
-  typedef unsigned char Byte;
+        /**
+          The following type definition is to be used whenever data is placed
+          and manipulated in a common buffer. Use this typedef for buffers
+          that contain data containing binary and character data.
+        */
+        typedef unsigned char Byte;
 
-  explicit Log_event_header(Log_event_type type_code_arg = ENUM_END_EVENT)
-      : type_code(type_code_arg), data_written(0), log_pos(0), flags(0) {
-    when.tv_sec = 0;
-    when.tv_usec = 0;
-  }
-  /**
-    Log_event_header constructor.
+        explicit Log_event_header(Log_event_type type_code_arg = ENUM_END_EVENT)
+                : type_code(type_code_arg), data_written(0), log_pos(0), flags(0) {
+            when.tv_sec = 0;
+            when.tv_usec = 0;
+        }
+        /**
+          Log_event_header constructor.
 
-    @param reader the Event_reader containing the serialized event (including
-                  header, event data and optional checksum information).
-  */
-  Log_event_header(Event_reader &reader);
+          @param reader the Event_reader containing the serialized event (including
+                        header, event data and optional checksum information).
+        */
+        Log_event_header(Event_reader &reader);
 
-  /**
-    The get_is_valid function is related to event specific sanity checks to
-    determine that the object was initialized without errors.
+        /**
+          The get_is_valid function is related to event specific sanity checks to
+          determine that the object was initialized without errors.
 
-    Note that a given event object may be valid at some point (ancestor
-    event type initialization was fine) but be turned invalid in a later
-    stage.
+          Note that a given event object may be valid at some point (ancestor
+          event type initialization was fine) but be turned invalid in a later
+          stage.
 
-    @return True if the event object is valid, false otherwise.
-  */
+          @return True if the event object is valid, false otherwise.
+        */
 
-  bool get_is_valid() { return m_is_valid; }
+        bool get_is_valid() { return m_is_valid; }
 
-  /**
-    Set if the event object shall be considered valid or not.
+        /**
+          Set if the event object shall be considered valid or not.
 
-    @param is_valid if the event object shall be considered valid.
-  */
+          @param is_valid if the event object shall be considered valid.
+        */
 
-  void set_is_valid(bool is_valid) { m_is_valid = is_valid; }
+        void set_is_valid(bool is_valid) { m_is_valid = is_valid; }
 
- private:
-  /*
-    As errors might happen when de-serializing events, the m_is_valid variable
-    will hold information about the validity of the event.
+    private:
+        /*
+          As errors might happen when de-serializing events, the m_is_valid variable
+          will hold information about the validity of the event.
 
-    An invalid event shall never be applied/dumped/displayed, as its
-    interpretation (accessing its contents) might lead to using invalid
-    memory pointers.
-  */
-  bool m_is_valid;
-};
+          An invalid event shall never be applied/dumped/displayed, as its
+          interpretation (accessing its contents) might lead to using invalid
+          memory pointers.
+        */
+        bool m_is_valid;
+    };
 
 /**
   This is the abstract base class for binary log events.
@@ -764,133 +791,133 @@ class Log_event_header {
   is documented separately.
 
 */
-class Binary_log_event {
- public:
-  /*
-     The number of types we handle in Format_description_event (UNKNOWN_EVENT
-     is not to be handled, it does not exist in binlogs, it does not have a
-     format).
-  */
-  static const int LOG_EVENT_TYPES = (ENUM_END_EVENT - 1);
+    class Binary_log_event {
+    public:
+        /*
+           The number of types we handle in Format_description_event (UNKNOWN_EVENT
+           is not to be handled, it does not exist in binlogs, it does not have a
+           format).
+        */
+        static const int LOG_EVENT_TYPES = (ENUM_END_EVENT - 1);
 
-  /**
-    The lengths for the fixed data part of each event.
-    This is an enum that provides post-header lengths for all events.
-  */
-  enum enum_post_header_length {
-    // where 3.23, 4.x and 5.0 agree
-    QUERY_HEADER_MINIMAL_LEN = (4 + 4 + 1 + 2),
-    // where 5.0 differs: 2 for length of N-bytes vars.
-    QUERY_HEADER_LEN = (QUERY_HEADER_MINIMAL_LEN + 2),
-    STOP_HEADER_LEN = 0,
-    START_V3_HEADER_LEN = (2 + ST_SERVER_VER_LEN + 4),
-    // this is FROZEN (the Rotate post-header is frozen)
-    ROTATE_HEADER_LEN = 8,
-    INTVAR_HEADER_LEN = 0,
-    APPEND_BLOCK_HEADER_LEN = 4,
-    DELETE_FILE_HEADER_LEN = 4,
-    RAND_HEADER_LEN = 0,
-    USER_VAR_HEADER_LEN = 0,
-    FORMAT_DESCRIPTION_HEADER_LEN = (START_V3_HEADER_LEN + 1 + LOG_EVENT_TYPES),
-    XID_HEADER_LEN = 0,
-    BEGIN_LOAD_QUERY_HEADER_LEN = APPEND_BLOCK_HEADER_LEN,
-    ROWS_HEADER_LEN_V1 = 8,
-    TABLE_MAP_HEADER_LEN = 8,
-    EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN = (4 + 4 + 4 + 1),
-    EXECUTE_LOAD_QUERY_HEADER_LEN =
-        (QUERY_HEADER_LEN + EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN),
-    INCIDENT_HEADER_LEN = 2,
-    HEARTBEAT_HEADER_LEN = 0,
-    IGNORABLE_HEADER_LEN = 0,
-    ROWS_HEADER_LEN_V2 = 10,
-    TRANSACTION_CONTEXT_HEADER_LEN = 18,
-    VIEW_CHANGE_HEADER_LEN = 52,
-    XA_PREPARE_HEADER_LEN = 0,
-    TRANSACTION_PAYLOAD_HEADER_LEN = 0,
-  };  // end enum_post_header_length
- protected:
-  /**
-    This constructor is used to initialize the type_code of header object
-    m_header.
-    We set the type code to ENUM_END_EVENT so that the decoder
-    asserts if event type has not been modified by the sub classes
-  */
-  explicit Binary_log_event(Log_event_type type_code)
-      : m_reader(nullptr, 0), m_header(type_code) {}
+        /**
+          The lengths for the fixed data part of each event.
+          This is an enum that provides post-header lengths for all events.
+        */
+        enum enum_post_header_length {
+            // where 3.23, 4.x and 5.0 agree
+            QUERY_HEADER_MINIMAL_LEN = (4 + 4 + 1 + 2),
+            // where 5.0 differs: 2 for length of N-bytes vars.
+            QUERY_HEADER_LEN = (QUERY_HEADER_MINIMAL_LEN + 2),
+            STOP_HEADER_LEN = 0,
+            START_V3_HEADER_LEN = (2 + ST_SERVER_VER_LEN + 4),
+            // this is FROZEN (the Rotate post-header is frozen)
+            ROTATE_HEADER_LEN = 8,
+            INTVAR_HEADER_LEN = 0,
+            APPEND_BLOCK_HEADER_LEN = 4,
+            DELETE_FILE_HEADER_LEN = 4,
+            RAND_HEADER_LEN = 0,
+            USER_VAR_HEADER_LEN = 0,
+            FORMAT_DESCRIPTION_HEADER_LEN = (START_V3_HEADER_LEN + 1 + LOG_EVENT_TYPES),
+            XID_HEADER_LEN = 0,
+            BEGIN_LOAD_QUERY_HEADER_LEN = APPEND_BLOCK_HEADER_LEN,
+            ROWS_HEADER_LEN_V1 = 8,
+            TABLE_MAP_HEADER_LEN = 8,
+            EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN = (4 + 4 + 4 + 1),
+            EXECUTE_LOAD_QUERY_HEADER_LEN =
+            (QUERY_HEADER_LEN + EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN),
+            INCIDENT_HEADER_LEN = 2,
+            HEARTBEAT_HEADER_LEN = 0,
+            IGNORABLE_HEADER_LEN = 0,
+            ROWS_HEADER_LEN_V2 = 10,
+            TRANSACTION_CONTEXT_HEADER_LEN = 18,
+            VIEW_CHANGE_HEADER_LEN = 52,
+            XA_PREPARE_HEADER_LEN = 0,
+            TRANSACTION_PAYLOAD_HEADER_LEN = 0,
+        };  // end enum_post_header_length
+    protected:
+        /**
+          This constructor is used to initialize the type_code of header object
+          m_header.
+          We set the type code to ENUM_END_EVENT so that the decoder
+          asserts if event type has not been modified by the sub classes
+        */
+        explicit Binary_log_event(Log_event_type type_code)
+                : m_reader(nullptr, 0), m_header(type_code) {}
 
-  /**
-    This constructor will create a new object of Log_event_header and initialize
-    the variable m_header, which in turn will be used to initialize Log_event's
-    member common_header.
-    It will also advance the Event_reader cursor after decoding the header (it
-    is done through the constructor of Log_event_header) and will be pointing to
-    the start of event data.
+        /**
+          This constructor will create a new object of Log_event_header and initialize
+          the variable m_header, which in turn will be used to initialize Log_event's
+          member common_header.
+          It will also advance the Event_reader cursor after decoding the header (it
+          is done through the constructor of Log_event_header) and will be pointing to
+          the start of event data.
 
-    @param buf  Contains the serialized event.
-    @param fde  An FDE event used to get checksum information of non FDE events.
-  */
-  Binary_log_event(const char **buf, const Format_description_event *fde);
+          @param buf  Contains the serialized event.
+          @param fde  An FDE event used to get checksum information of non FDE events.
+        */
+        Binary_log_event(const char **buf, const Format_description_event *fde);
 
- public:
+    public:
 #ifndef HAVE_MYSYS
-  /*
-    The print_event_info functions are used in the free standing version of
-    the library only. Since MySQL server does not use them, and it does not
-    link to standard input/output library on Windows 32 bit system ,these
-    methods are commented out when the library(libbinlogevents) is built
-    with the server.
-  */
-  /**
-    Returns short information about the event
-  */
-  virtual void print_event_info(std::ostream &info) = 0;
-  /**
-    Returns detailed information about the event
-  */
-  virtual void print_long_info(std::ostream &info) = 0;
+        /*
+          The print_event_info functions are used in the free standing version of
+          the library only. Since MySQL server does not use them, and it does not
+          link to standard input/output library on Windows 32 bit system ,these
+          methods are commented out when the library(libbinlogevents) is built
+          with the server.
+        */
+        /**
+          Returns short information about the event
+        */
+        virtual void print_event_info(std::ostream &info) = 0;
+        /**
+          Returns detailed information about the event
+        */
+        virtual void print_long_info(std::ostream &info) = 0;
 #endif
-  virtual ~Binary_log_event() = 0;
+        virtual ~Binary_log_event() = 0;
 
-  Binary_log_event(const Binary_log_event &) = default;
-  Binary_log_event(Binary_log_event &&) = default;
-  Binary_log_event &operator=(const Binary_log_event &) = default;
-  Binary_log_event &operator=(Binary_log_event &&) = default;
+        Binary_log_event(const Binary_log_event &) = default;
+        Binary_log_event(Binary_log_event &&) = default;
+        Binary_log_event &operator=(const Binary_log_event &) = default;
+        Binary_log_event &operator=(Binary_log_event &&) = default;
 
-  /**
-   * Helper method
-   */
-  enum Log_event_type get_event_type() const { return m_header.type_code; }
+        /**
+         * Helper method
+         */
+        enum Log_event_type get_event_type() const { return m_header.type_code; }
 
-  /**
-    Return a const pointer to the header of the log event
-  */
-  const Log_event_header *header() const { return &m_header; }
-  /**
-    Return a non-const pointer to the header of the log event
-  */
-  Log_event_header *header() { return &m_header; }
-  /**
-    Return a const pointer to the footer of the log event
-  */
-  const Log_event_footer *footer() const { return &m_footer; }
-  /**
-    Return a non-const pointer to the footer of the log event
-  */
-  Log_event_footer *footer() { return &m_footer; }
-  /**
-    Returns a reference to the event Event_reader object.
-  */
-  Event_reader &reader() { return m_reader; }
+        /**
+          Return a const pointer to the header of the log event
+        */
+        const Log_event_header *header() const { return &m_header; }
+        /**
+          Return a non-const pointer to the header of the log event
+        */
+        Log_event_header *header() { return &m_header; }
+        /**
+          Return a const pointer to the footer of the log event
+        */
+        const Log_event_footer *footer() const { return &m_footer; }
+        /**
+          Return a non-const pointer to the footer of the log event
+        */
+        Log_event_footer *footer() { return &m_footer; }
+        /**
+          Returns a reference to the event Event_reader object.
+        */
+        Event_reader &reader() { return m_reader; }
 
- private:
-  /*
-    All the accesses to the event buffer shall be performed by using m_reader
-    methods.
-  */
-  Event_reader m_reader;
-  Log_event_header m_header;
-  Log_event_footer m_footer;
-};
+    private:
+        /*
+          All the accesses to the event buffer shall be performed by using m_reader
+          methods.
+        */
+        Event_reader m_reader;
+        Log_event_header m_header;
+        Log_event_footer m_footer;
+    };
 
 /**
   @class Unknown_event
@@ -902,20 +929,20 @@ class Binary_log_event {
   The Post-Header and Body for this event type are empty; it only has
   the Common-Header.
 */
-class Unknown_event : public Binary_log_event {
- public:
-  /**
-    This is the minimal constructor, and set the type_code as
-    UNKNOWN_EVENT in the header object in Binary_log_event
-  */
-  Unknown_event() : Binary_log_event(UNKNOWN_EVENT) {}
+    class Unknown_event : public Binary_log_event {
+    public:
+        /**
+          This is the minimal constructor, and set the type_code as
+          UNKNOWN_EVENT in the header object in Binary_log_event
+        */
+        Unknown_event() : Binary_log_event(UNKNOWN_EVENT) {}
 
-  Unknown_event(const char *buf, const Format_description_event *fde);
+        Unknown_event(const char *buf, const Format_description_event *fde);
 #ifndef HAVE_MYSYS
-  void print_event_info(std::ostream &info) override;
-  void print_long_info(std::ostream &info) override;
+        void print_event_info(std::ostream &info) override;
+        void print_long_info(std::ostream &info) override;
 #endif
-};
+    };
 }  // end namespace binary_log
 /**
   @} (end of group Replication)

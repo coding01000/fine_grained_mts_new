@@ -66,7 +66,6 @@ namespace binary_log {
   Macro to be used to wrap calls to Event_reader functions that return values.
 */
 #define READER_SET(var, func, ...)                     \
-  BAPI_PRINT("debug", ("Event_reader::SET %s", #var)); \
   var = reader().func(__VA_ARGS__)
 
 /*

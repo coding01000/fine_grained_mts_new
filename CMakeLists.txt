@@ -10,7 +10,7 @@ include_directories(./include
 
 link_directories(/usr/local/opt/mysql-client/lib)
 
-link_libraries(mysqlclient)
+link_libraries(mysqlclient z)
 
 ADD_SUBDIRECTORY(./table)
 ADD_SUBDIRECTORY(./utils)
