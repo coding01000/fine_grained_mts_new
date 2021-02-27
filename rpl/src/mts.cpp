@@ -53,47 +53,50 @@ namespace rpl{
 
     int MTS_Handler::process() {
         binary_log::Log_event_type type = (binary_log::Log_event_type)rpl.buffer[1 + EVENT_TYPE_OFFSET];
-        if (type == binary_log::WRITE_ROWS_EVENT){
-            printf("WRITE_ROWS_EVENTS!\n");
-            auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
-            ev->reader().read<uint8_t>();
-            printf("-----%d---%d\n",(ev->get_event_type()==binary_log::WRITE_ROWS_EVENT),
-                   ev->reader().read<uint64_t>());
-        }else if (type == binary_log::FORMAT_DESCRIPTION_EVENT){
-            printf("FORMAT_DESCRIPTION_EVENT!\n");
-            binary_log::Format_description_event fde_tmp = binary_log::Format_description_event(4, "8.017");
-            char * buf = ( char *)malloc(sizeof(char *)*(rpl.size+1));
-            memcpy(buf, rpl.buffer + 1, rpl.size-1);
-            fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(rpl.buffer + 1), &fde_tmp);
-            fde->print_event_info(std::cout);
-        }
-        else if (type == binary_log::TABLE_MAP_EVENT){
-            printf("TABLE_MAP_EVENT!\n");
-            auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
-            ev->reader().read<uint8_t>();
-            printf("-----%d---%d\n",(ev->get_event_type()==binary_log::TABLE_MAP_EVENT),
-                   ev->reader().read<uint64_t>());
-//            binary_log::Event_Handler eh;
-//            table = eh.unpack(ev);
-        }
-        else if (type == binary_log::DELETE_ROWS_EVENT){
-            printf("DELETE_ROWS_EVENT!\n");
-
-            auto *ev = new binary_log::Delete_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
-            ev->reader().read<uint8_t>();
-            printf("-----%d---%d\n",(ev->get_event_type()==binary_log::DELETE_ROWS_EVENT),
-                   ev->reader().read<uint64_t>());
-        }
-        else if (type == binary_log::UPDATE_ROWS_EVENT){
-            printf("UPDATE_ROWS_EVENT!\n");
-
-            auto *ev = new binary_log::Update_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
-            char *buf = new char[ev->row.size()];
-            std::copy(ev->row.begin(), ev->row.end(), buf);
-            auto reader = binary_log::Event_reader(buf, ev->row.size());
-            binary_log::Event_Handler eh;
+        switch (type) {
+            case binary_log::FORMAT_DESCRIPTION_EVENT: {
+                printf("FORMAT_DESCRIPTION_EVENT!\n");
+                binary_log::Format_description_event *fde_tmp = new binary_log::Format_description_event(4, "8.017");
+                char *buf = (char *) malloc(sizeof(char *) * (rpl.size + 1));
+                memcpy(buf, rpl.buffer + 1, rpl.size - 1);
+                fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde_tmp);
+                fde->print_event_info(std::cout);
+                break;
+            }
+            case binary_log::TABLE_MAP_EVENT:{
+                printf("TABLE_MAP_EVENT!\n");
+                auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                std::string full_table_name = ev->get_db_name()+'.'+ev->get_table_name();
+                auto it = tables.find(full_table_name);
+                if (it == tables.end()){
+                    binary_log::Event_Handler eh;
+                    auto table = eh.unpack(ev);
+                }
+                break;
+            }
+            case binary_log::WRITE_ROWS_EVENT: {
+                printf("WRITE_ROWS_EVENTS!\n");
+                auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                break;
+            }
+            case binary_log::DELETE_ROWS_EVENT:{
+                printf("DELETE_ROWS_EVENT!\n");
+                auto *ev = new binary_log::Delete_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                break;
+            }
+            case binary_log::UPDATE_ROWS_EVENT:{
+                printf("UPDATE_ROWS_EVENT!\n");
+                auto *ev = new binary_log::Update_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                char *buf = new char[ev->row.size()];
+                std::copy(ev->row.begin(), ev->row.end(), buf);
+                auto reader = binary_log::Event_reader(buf, ev->row.size());
+                binary_log::Event_Handler eh;
+                break;
 //            auto it = eh.unpack(ev, reader, table);
-//            int a;
+            }
+            default:
+                printf("Other Events!\n");
+                break;
         }
     }
 }
