@@ -937,7 +937,7 @@ namespace binary_log {
 
         ~Rows_event() override;
 
-    protected:
+    public:
         Log_event_type m_type; /** Actual event type */
 
         /** Post header content */
