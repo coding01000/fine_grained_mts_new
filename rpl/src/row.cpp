@@ -4,9 +4,14 @@ namespace rpl{
 
     Row::Row() {}
 
-    Row::Row(uint64_t event_time, bool is_deleted) {
+    Row::Row(std::string primary_key, uint64_t event_time, bool is_deleted, std::string db_name,
+             std::string table_name) {
         this->event_time = event_time;
         this->is_deleted = is_deleted;
+        this->primary_key = primary_key;
+        this->db_name = db_name;
+        this->table_name = table_name;
+        this->next = NULL;
     }
 
     Row::~Row() {

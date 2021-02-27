@@ -19,6 +19,7 @@ namespace rpl{
         rpl.file_name = row[0];
         rpl.file_name_length = strlen(rpl.file_name);
         rpl.start_position = atol(row[1]);
+        rpl.flags = MYSQL_RPL_SKIP_HEARTBEAT;
         return 0;
     }
 
@@ -68,20 +69,56 @@ namespace rpl{
                 auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
                 std::string full_table_name = ev->get_db_name()+'.'+ev->get_table_name();
                 auto it = tables.find(full_table_name);
+                //如果没有这个表则创建这个表，并构建schema
                 if (it == tables.end()){
-                    binary_log::Event_Handler eh;
-                    auto table = eh.unpack(ev);
+                    auto *table_schema = eventHandler.unpack(ev);
+                    Table *table = new Table(full_table_name);
+                    table->schema = new binary_log::TableSchema(*table_schema);
+                    table->_pk = table_schema->getPrikey();
+                    tables[full_table_name] = table;
                 }
                 break;
             }
+//            下面三个rows event完全可以使用一套代码，主要处理逻辑的差别在Event_Handler中的unpack中
+//             但是考虑到后面可能会加不一样的处理逻辑，在这是分开处理的
             case binary_log::WRITE_ROWS_EVENT: {
                 printf("WRITE_ROWS_EVENTS!\n");
                 auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                char *buf = new char[ev->row.size()];
+                std::copy(ev->row.begin(), ev->row.end(), buf);
+                auto reader = binary_log::Event_reader(buf, ev->row.size());
+                auto *table_schema = eventHandler.get_schema(ev->get_table_id());
+                std::string table_full_name = table_schema->getDBname() + '.' + table_schema->getTablename();
+                auto it = tables.find(table_full_name);
+                if (it==tables.end()){
+                    printf("No Match Table!\n");
+                }
+                Table *table = it->second;
+                int idx = table_schema->getIdxByName(table_schema->getPrikey());
+                auto col = eventHandler.unpack(ev, reader, table_schema);
+                Row *row = new Row(col[idx], ev->header()->when.tv_sec, false, table_schema->getDBname(), table_schema->getTablename());
+                row->columns = col;
+                table->insert_row(row);
                 break;
             }
             case binary_log::DELETE_ROWS_EVENT:{
                 printf("DELETE_ROWS_EVENT!\n");
                 auto *ev = new binary_log::Delete_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                char *buf = new char[ev->row.size()];
+                std::copy(ev->row.begin(), ev->row.end(), buf);
+                auto reader = binary_log::Event_reader(buf, ev->row.size());
+                auto *table_schema = eventHandler.get_schema(ev->get_table_id());
+                std::string table_full_name = table_schema->getDBname() + '.' + table_schema->getTablename();
+                auto it = tables.find(table_full_name);
+                if (it==tables.end()){
+                    printf("No Match Table!\n");
+                }
+                Table *table = it->second;
+                int idx = table_schema->getIdxByName(table_schema->getPrikey());
+                auto col = eventHandler.unpack(ev, reader, table_schema);
+                Row *row = new Row(col[idx], ev->header()->when.tv_sec, true, table_schema->getDBname(), table_schema->getTablename());
+                row->columns = col;
+                table->insert_row(row);
                 break;
             }
             case binary_log::UPDATE_ROWS_EVENT:{
@@ -90,7 +127,18 @@ namespace rpl{
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
                 auto reader = binary_log::Event_reader(buf, ev->row.size());
-                binary_log::Event_Handler eh;
+                auto *table_schema = eventHandler.get_schema(ev->get_table_id());
+                std::string table_full_name = table_schema->getDBname() + '.' + table_schema->getTablename();
+                auto it = tables.find(table_full_name);
+                if (it==tables.end()){
+                    printf("No Match Table!\n");
+                }
+                Table *table = it->second;
+                int idx = table_schema->getIdxByName(table_schema->getPrikey());
+                auto col = eventHandler.unpack(ev, reader, table_schema);
+                Row *row = new Row(col[idx], ev->header()->when.tv_sec, true, table_schema->getDBname(), table_schema->getTablename());
+                row->columns = col;
+                table->insert_row(row);
                 break;
 //            auto it = eh.unpack(ev, reader, table);
             }

@@ -19,7 +19,7 @@ namespace rpl{
     public:
         Row();
         ~Row();
-        Row(uint64_t event_time, bool is_deleted);
+        Row(std::string primary_key, uint64_t event_time, bool is_deleted, std::string db_name, std::string table_name);
     };
 
     class Hash_Header{

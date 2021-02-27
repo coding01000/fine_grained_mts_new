@@ -112,4 +112,8 @@ namespace binary_log{
         return kv.second;
     }
 
+    TableSchema * Event_Handler::get_schema(uint64_t pk) {
+        return table_schemas.find(pk)->second;
+    }
+
 }

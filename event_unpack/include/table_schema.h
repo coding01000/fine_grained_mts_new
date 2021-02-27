@@ -22,6 +22,7 @@ namespace binary_log{
         bool createField(const char* name, const char* type, const char* max_octet_length);
         Field* getFieldByName(std::string& FieldName);
         Field* getFieldByIndex(int index);
+        int getIdxByName(std::string& FieldName);
         size_t getFieldCount() const { return columns_.size();}
     };
 }

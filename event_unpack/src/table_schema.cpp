@@ -117,6 +117,14 @@ namespace binary_log{
         return NULL;
     }
 
+    int TableSchema::getIdxByName(std::string &FieldName) {
+        for(size_t i = 0; i<columns_.size();i++) {
+            if(columns_[i]->fieldName() == FieldName) {
+                return i;
+            }
+        }
+    }
+
     Field* TableSchema::getFieldByIndex(int index) {
         if(index < 0 || index >= (int)columns_.size()) {
             return NULL;

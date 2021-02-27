@@ -17,6 +17,7 @@ namespace binary_log{
         std::vector<std::string> unpack(Delete_rows_event *ev, Event_reader &reader, TableSchema *table);
         std::vector<std::string> unpack(Update_rows_event *ev, Event_reader &reader, TableSchema *table);
         TableSchema* unpack(Table_map_event *ev);
+        TableSchema* get_schema(uint64_t pk);
     };
 }
 
