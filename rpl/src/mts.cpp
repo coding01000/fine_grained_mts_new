@@ -8,7 +8,7 @@ namespace rpl{
         pool->init();
         mysql = mysql_init(nullptr);
         mysql->reconnect = 1;
-        mysql = mysql_real_connect(mysql, "10.24.10.113", "ssh", "ssh",
+        mysql = mysql_real_connect(mysql, "10.24.10.121", "root", "oj123456789",
                                    NULL, 3306, NULL, 0);
         if (!mysql){
             printf("Error connecting to database:%s\n",mysql_error(mysql));
@@ -21,6 +21,7 @@ namespace rpl{
         rpl.server_id =1;
         rpl.file_name = row[0];
         rpl.file_name_length = strlen(rpl.file_name);
+        std::cout<<rpl.file_name<<std::endl;
         rpl.start_position = atol(row[1]);
         rpl.flags = MYSQL_RPL_SKIP_HEARTBEAT;
         return 0;
@@ -159,23 +160,24 @@ namespace rpl{
             }
             default:
                 printf("Other Events!\n");
-                for (auto k=tables.begin();k!=tables.end();k++){
-                    std::cout<<"table:"<<k->first<<std::endl;
-                    auto r= k->second->rows;
-                    for (auto it=r.begin();it!=r.end();it++){
-                        std::cout<<it->first<<" ";
-                        if (it->second->next){
-                            std::cout<<it->second->next->columns[0]<<it->second->next->columns[1]<<it->second->next->columns[2];
-                        }
-                        std::cout<<std::endl;
-                    }
-                }
+//                for (auto k=tables.begin();k!=tables.end();k++){
+//                    std::cout<<"table:"<<k->first<<std::endl;
+//                    auto r= k->second->rows;
+//                    for (auto it=r.begin();it!=r.end();it++){
+//                        std::cout<<it->first<<" ";
+//                        if (it->second->next){
+//                            std::cout<<it->second->next->columns[0]<<it->second->next->columns[1]<<it->second->next->columns[2];
+//                        }
+//                        std::cout<<std::endl;
+//                    }
+//                }
                 break;
         }
     }
 
     int MTS_Handler::insert_a_record(Table *table, Row *row) {
         //可以把入队代码放到解析事务的代码中一起加锁，保证入队顺序的严格一致
+        std::cout<<row->table_name<<" "<<row->columns[0]<<" "<<row->columns[1]<<std::endl;
         auto it = q_map.find(row->primary_key);
         SafeQueue<Row *> * q;
         if (it==q_map.end()){

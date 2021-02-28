@@ -51,7 +51,8 @@ namespace binary_log{
         if (pack_length_ == 1) {
             len = reader.read<uint8_t>();
         } else if (pack_length_ == 2) {
-            len = (size_t) reader.read<uint16>();
+            const char* ptr = reader.ptr(2);
+            len = uint2korr(ptr);
         } else if (pack_length_ == 3) {
             const char* ptr = reader.ptr(3);
             len = uint3korr(ptr);
@@ -221,5 +222,18 @@ std::string FieldDatetime::valueString(const Event_reader &b) {
         d=doubleget(reinterpret_cast<const unsigned char*>(ptr));
         snprintf(buf, sizeof(buf), "%f", d);
         return std::string(buf);
+    }
+
+    std::string FieldDecimal::valueString(Event_reader &reader) {
+        int bin_size = decimal_bin_size(precision, scale);
+        const uchar *buf = reinterpret_cast<const uchar *>(reader.ptr(bin_size));
+        decimal_t decimal;
+        decimal.len = 50;
+        decimal.buf = new int32[50];
+        bin2decimal(buf, &decimal, precision, scale, true);
+        char *tmp = new char[50];
+        int *p = new int(20);
+        decimal2string(&decimal, tmp, p);
+        return std::string(reinterpret_cast<const char *>(tmp));
     }
 }

@@ -5,14 +5,15 @@ namespace binary_log{
     Event_Handler::Event_Handler() {
         mysql = mysql_init(nullptr);
         mysql->reconnect = 1;
-        mysql = mysql_real_connect(mysql, "10.24.10.113", "ssh", "ssh",
+        mysql = mysql_real_connect(mysql, "10.24.10.121", "root", "oj123456789",
                                    NULL, 3306, NULL, 0);
     }
 
     std::vector<std::string> Event_Handler::unpack(Rows_event *ev, Event_reader &reader,
                                                        TableSchema *table) {
         std::vector<std::string> row;
-        reader.ptr(1);//reader的位置是bitmap，移动一个位置
+        int row_bit_len = (ev->m_width-1)/8+1;
+        reader.ptr(row_bit_len);//reader的位置是bitmap，移动一个位置
         for(uint64_t i =0; i<ev->m_width;i++) {
             Field *column_field = NULL;
             std::string value;
@@ -73,8 +74,9 @@ namespace binary_log{
         char sql[1024];
         snprintf(sql, sizeof(sql), "SELECT COLUMN_NAME,COLUMN_TYPE,CHARACTER_OCTET_LENGTH,ORDINAL_POSITION,"
                                               " COLUMN_KEY FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s'"
-                                              "AND TABLE_NAME = '%s' ORDER BY ORDINAL_POSITION", ev->get_db_name().c_str(),
+                                              " AND TABLE_NAME = '%s' ORDER BY ORDINAL_POSITION;", ev->get_db_name().c_str(),
                                               ev->get_table_name().c_str());
+//        std::cout<<sql<<std::endl;
         mysql_query(mysql, sql);
         MYSQL_RES *res = mysql_store_result(mysql);
         if (res == NULL) {

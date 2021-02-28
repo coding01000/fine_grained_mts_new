@@ -15,6 +15,7 @@ namespace rpl{
         ~Table();
         Table(std::string table_name);
         uint8_t insert_row(Row *row);
+        Row* get(std::string primary_key, uint64_t time);
         void print_all();
     };
 }

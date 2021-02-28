@@ -5,6 +5,7 @@
 #include <vector>
 #include "binary_log.h"
 #include "my_byteorder.h"
+#include "decimal.h"
 #define DATETIMEF_INT_OFS 0x8000000000LL
 
 namespace binary_log{
@@ -54,6 +55,19 @@ namespace binary_log{
 
         virtual std::string valueDefault() { return "0.0"; }
     };	//FieldFloat
+
+    class FieldDecimal: public Field {
+    public:
+        int precision;
+        int scale;
+        explicit FieldDecimal(const std::string &name): Field(name) {}
+
+        virtual ~FieldDecimal() {}
+
+        virtual std::string valueString(Event_reader &reader);
+
+        virtual std::string valueDefault() { return "0.0"; }
+    };	//FieldDecimal
 
     class FieldDouble: public Field {
     public:

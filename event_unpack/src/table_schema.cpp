@@ -90,6 +90,22 @@ namespace binary_log{
             field = new FieldDouble(name);
         } else if (strcmp(type, "timestamp") == 0 ) {
             field = new FieldTimestamp(name) ;
+        } else if (strstr(type, "decimal")!=NULL){
+            FieldDecimal *fd = new FieldDecimal(name);
+            char *p_start = strstr(type, "(")+1;
+            char *p_end = strstr(type, ",");
+            char *s_start = p_end+1;
+            char *s_end = strstr(type, ")");
+            std::string p, s;
+            for (;p_start<p_end;p_start++){
+                p.push_back(*p_start);
+            }
+            for (;s_start<s_end;s_start++){
+                s.push_back(*s_start);
+            }
+            fd->precision = atoi(p.c_str());
+            fd->scale = atoi(s.c_str());
+            field = fd;
         }
 
         if (field == NULL) {
