@@ -28,4 +28,13 @@ namespace rpl{
         }
         return 0;
     }
+    void Table::print_all() {
+        for (auto i=rows.begin();i!=rows.end();i++){
+            std::cout<<i->first;
+            if (i->second->next){
+                std::cout<<i->second->next->columns[0]<<i->second->next->columns[1]<<i->second->next->columns[2];
+            }
+            std::cout<<std::endl;
+        }
+    }
 }

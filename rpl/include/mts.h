@@ -16,6 +16,7 @@ namespace rpl{
         int run();
     protected:
         int process();
+        int process(char *buffer, int length);
     };
 }
 

@@ -53,20 +53,27 @@ namespace rpl{
     }
 
     int MTS_Handler::process() {
-        binary_log::Log_event_type type = (binary_log::Log_event_type)rpl.buffer[1 + EVENT_TYPE_OFFSET];
+        char *buffer = new char[rpl.size];
+        int length = rpl.size;
+        memcpy(buffer, rpl.buffer, length);
+        return process(buffer, length);
+    }
+
+    int MTS_Handler::process(char *buffer, int length) {
+        binary_log::Log_event_type type = (binary_log::Log_event_type)buffer[1 + EVENT_TYPE_OFFSET];
         switch (type) {
             case binary_log::FORMAT_DESCRIPTION_EVENT: {
                 printf("FORMAT_DESCRIPTION_EVENT!\n");
                 binary_log::Format_description_event *fde_tmp = new binary_log::Format_description_event(4, "8.017");
-                char *buf = (char *) malloc(sizeof(char *) * (rpl.size + 1));
-                memcpy(buf, rpl.buffer + 1, rpl.size - 1);
-                fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde_tmp);
+                char *buf = (char *) malloc(sizeof(char *) * (length + 1));
+                memcpy(buf, buffer + 1, length - 1);
+                fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(buffer + 1), fde_tmp);
                 fde->print_event_info(std::cout);
                 break;
             }
             case binary_log::TABLE_MAP_EVENT:{
                 printf("TABLE_MAP_EVENT!\n");
-                auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(buffer + 1), fde);
                 std::string full_table_name = ev->get_db_name()+'.'+ev->get_table_name();
                 auto it = tables.find(full_table_name);
                 //如果没有这个表则创建这个表，并构建schema
@@ -83,7 +90,7 @@ namespace rpl{
 //             但是考虑到后面可能会加不一样的处理逻辑，在这是分开处理的
             case binary_log::WRITE_ROWS_EVENT: {
                 printf("WRITE_ROWS_EVENTS!\n");
-                auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(buffer + 1), fde);
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
                 auto reader = binary_log::Event_reader(buf, ev->row.size());
@@ -103,7 +110,7 @@ namespace rpl{
             }
             case binary_log::DELETE_ROWS_EVENT:{
                 printf("DELETE_ROWS_EVENT!\n");
-                auto *ev = new binary_log::Delete_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                auto *ev = new binary_log::Delete_rows_event(reinterpret_cast<const char *>(buffer + 1), fde);
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
                 auto reader = binary_log::Event_reader(buf, ev->row.size());
@@ -123,7 +130,7 @@ namespace rpl{
             }
             case binary_log::UPDATE_ROWS_EVENT:{
                 printf("UPDATE_ROWS_EVENT!\n");
-                auto *ev = new binary_log::Update_rows_event(reinterpret_cast<const char *>(rpl.buffer + 1), fde);
+                auto *ev = new binary_log::Update_rows_event(reinterpret_cast<const char *>(buffer + 1), fde);
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
                 auto reader = binary_log::Event_reader(buf, ev->row.size());
@@ -144,6 +151,17 @@ namespace rpl{
             }
             default:
                 printf("Other Events!\n");
+                for (auto k=tables.begin();k!=tables.end();k++){
+                    std::cout<<"table:"<<k->first<<std::endl;
+                    auto r= k->second->rows;
+                    for (auto it=r.begin();it!=r.end();it++){
+                        std::cout<<it->first<<" ";
+                        if (it->second->next){
+                            std::cout<<it->second->next->columns[0]<<it->second->next->columns[1]<<it->second->next->columns[2];
+                        }
+                        std::cout<<std::endl;
+                    }
+                }
                 break;
         }
     }

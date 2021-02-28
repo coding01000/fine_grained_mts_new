@@ -19,9 +19,12 @@ namespace binary_log{
             const char *ptr = reader.ptr(3);
             unsigned_ ? value.ui = uint3korr(ptr) : value.i = sint3korr(ptr);
         } else if (length_ == 4) {
-            unsigned_ ? value.ui = reader.read<uint32_t>() : value.i = (int32_t) reader.read<int32_t>();
+            const char *ptr = reader.ptr(4);
+            unsigned_ ? value.ui = uint4korr(ptr) : value.i = (int32_t) uint4korr(ptr);
+//            unsigned_ ? value.ui = reader.read<uint32_t>() : value.i = reader.read<uint32_t>();
         } else if (length_ == 8) {
-            unsigned_ ? value.ui = reader.read<uint64_t>() : value.i = reader.read<int64_t>();
+            const char *ptr = reader.ptr(8);
+            unsigned_ ? value.ui = uint8korr(ptr) : value.i = (int64_t)uint8korr(ptr);
         }
 
         if (length_ == 8 && unsigned_) {
@@ -53,7 +56,8 @@ namespace binary_log{
             const char* ptr = reader.ptr(3);
             len = uint3korr(ptr);
         } else if (pack_length_ == 4) {
-            len = reader.read<uint32_t>();
+            const char* ptr = reader.ptr(4);
+            len = uint4korr(ptr);
         }
         value.assign(reader.ptr(len), len);
         return value;
