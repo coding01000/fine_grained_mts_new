@@ -1,8 +1,11 @@
 #include "../include/mts.h"
 #include "event_handle.h"
+#include <functional>
 
 namespace rpl{
     int MTS_Handler::init() {
+        pool = new ThreadPool(6);
+        pool->init();
         mysql = mysql_init(nullptr);
         mysql->reconnect = 1;
         mysql = mysql_real_connect(mysql, "10.24.10.113", "ssh", "ssh",
@@ -50,16 +53,19 @@ namespace rpl{
         }while (false);
         mysql_binlog_close(mysql, &rpl);
         mysql_close(mysql);
+        pool->shutdown();
     }
 
-    int MTS_Handler::process() {
-        char *buffer = new char[rpl.size];
+    void MTS_Handler::process() {
+        char *buffer = (char *)malloc(sizeof(char)*rpl.size);
         int length = rpl.size;
         memcpy(buffer, rpl.buffer, length);
-        return process(buffer, length);
+//        return process(buffer, length);
+        handle(buffer, length);
+//        pool->submit(std::bind(&MTS_Handler::handle, this, buffer, length));
     }
 
-    int MTS_Handler::process(char *buffer, int length) {
+    int MTS_Handler::handle(char *buffer, int length) {
         binary_log::Log_event_type type = (binary_log::Log_event_type)buffer[1 + EVENT_TYPE_OFFSET];
         switch (type) {
             case binary_log::FORMAT_DESCRIPTION_EVENT: {
@@ -105,7 +111,8 @@ namespace rpl{
                 auto col = eventHandler.unpack(ev, reader, table_schema);
                 Row *row = new Row(col[idx], ev->header()->when.tv_sec, false, table_schema->getDBname(), table_schema->getTablename());
                 row->columns = col;
-                table->insert_row(row);
+//                insert_a_record(table, row);
+                pool->submit(std::bind(&MTS_Handler::insert_a_record, this, table, row));
                 break;
             }
             case binary_log::DELETE_ROWS_EVENT:{
@@ -125,7 +132,8 @@ namespace rpl{
                 auto col = eventHandler.unpack(ev, reader, table_schema);
                 Row *row = new Row(col[idx], ev->header()->when.tv_sec, true, table_schema->getDBname(), table_schema->getTablename());
                 row->columns = col;
-                table->insert_row(row);
+//                insert_a_record(table, row);
+                pool->submit(std::bind(&MTS_Handler::insert_a_record, this, table, row));
                 break;
             }
             case binary_log::UPDATE_ROWS_EVENT:{
@@ -145,9 +153,9 @@ namespace rpl{
                 auto col = eventHandler.unpack(ev, reader, table_schema);
                 Row *row = new Row(col[idx], ev->header()->when.tv_sec, true, table_schema->getDBname(), table_schema->getTablename());
                 row->columns = col;
-                table->insert_row(row);
+//                insert_a_record(table, row);
+                pool->submit(std::bind(&MTS_Handler::insert_a_record, this, table, row));
                 break;
-//            auto it = eh.unpack(ev, reader, table);
             }
             default:
                 printf("Other Events!\n");
@@ -164,5 +172,25 @@ namespace rpl{
                 }
                 break;
         }
+    }
+
+    int MTS_Handler::insert_a_record(Table *table, Row *row) {
+        //可以把入队代码放到解析事务的代码中一起加锁，保证入队顺序的严格一致
+        auto it = q_map.find(row->primary_key);
+        SafeQueue<Row *> * q;
+        if (it==q_map.end()){
+            q = new SafeQueue<Row *>();
+            q_map[row->primary_key] = q;
+        }else{
+            q = it->second;
+        }
+        q->enqueue(row);
+        std::unique_lock<std::mutex> lock(q->mu);
+        while (q->q.front()->event_time!=row->event_time){
+            q_cv.wait(lock);
+        }
+        table->insert_row(row);
+        q->q.pop();
+        q_cv.notify_all();
     }
 }

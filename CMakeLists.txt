@@ -7,6 +7,7 @@ include_directories(
         ./binlog/include
         ./event_unpack/include
         ./rpl/include
+        ./thread_pool/include
 #        /usr/local/mysql-connector-c++/include/
         )
 
@@ -20,16 +21,15 @@ link_libraries(mysqlclient z)
 ADD_SUBDIRECTORY(./binlog)
 ADD_SUBDIRECTORY(./event_unpack)
 ADD_SUBDIRECTORY(./rpl)
+ADD_SUBDIRECTORY(./thread_pool)
 
 ADD_EXECUTABLE(fine_grained_mts test.cc)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 TARGET_LINK_LIBRARIES(fine_grained_mts
-#        table_lib
-#        utils_lib
-#        thread_pool_lib
         binlog_lib
         event_unpack_lib
         rpl_lib
+        thread_pool_lib
         )
