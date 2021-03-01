@@ -1,10 +1,18 @@
 #include "../include/mts.h"
 #include "event_handle.h"
 #include <functional>
+#include "ctime"
+#include "chrono"
 
 namespace rpl{
+    std::chrono::system_clock::time_point time_point_now = std::chrono::system_clock::now(); // 获取当前时间点
+    std::chrono::system_clock::duration duration_since_epoch
+            = time_point_now.time_since_epoch(); // 从1970-01-01 00:00:00到当前时间点的时长
+    time_t pretime
+            = std::chrono::duration_cast<std::chrono::microseconds>(duration_since_epoch).count(); // 将时长转换为微秒数
+
     int MTS_Handler::init() {
-        pool = new ThreadPool(6);
+        pool = new ThreadPool(1);
         pool->init();
         mysql = mysql_init(nullptr);
         mysql->reconnect = 1;
@@ -21,7 +29,7 @@ namespace rpl{
         rpl.server_id =1;
         rpl.file_name = row[0];
         rpl.file_name_length = strlen(rpl.file_name);
-        std::cout<<rpl.file_name<<std::endl;
+//        std::cout<<rpl.file_name<<std::endl;
         rpl.start_position = atol(row[1]);
         rpl.flags = MYSQL_RPL_SKIP_HEARTBEAT;
         return 0;
@@ -36,8 +44,17 @@ namespace rpl{
                         mysql_errno(mysql), mysql_error(mysql));
                 exit(1);
             }
+
+
+
             for (;;)  /* read events until error or EOF */
             {
+                std::chrono::system_clock::time_point time_point_now = std::chrono::system_clock::now(); // 获取当前时间点
+                std::chrono::system_clock::duration duration_since_epoch
+                        = time_point_now.time_since_epoch(); // 从1970-01-01 00:00:00到当前时间点的时长
+                time_t now
+                        = std::chrono::duration_cast<std::chrono::microseconds>(duration_since_epoch).count(); // 将时长转换为微秒数
+                pretime = now;
                 if (mysql_binlog_fetch(mysql, &rpl)) {
                     fprintf(stderr, "mysql_binlog_fetch() failed\n");
                     fprintf(stderr, "Error %u: %s\n",
@@ -49,6 +66,9 @@ namespace rpl{
                     fprintf(stderr, "EOF event received\n");
                     break;
                 }
+
+                //printf("DEBUG::Fetch_interval: %lld rpl.size: %ld\n", now - pretime, rpl.size);
+                //pretime = now;
                 process();
             }
         }while (false);
@@ -67,19 +87,26 @@ namespace rpl{
     }
 
     int MTS_Handler::handle(char *buffer, int length) {
+        std::chrono::system_clock::time_point time_point_now = std::chrono::system_clock::now(); // 获取当前时间点
+        std::chrono::system_clock::duration duration_since_epoch
+                = time_point_now.time_since_epoch(); // 从1970-01-01 00:00:00到当前时间点的时长
+        time_t now
+                = std::chrono::duration_cast<std::chrono::microseconds>(duration_since_epoch).count(); // 将时长转换为微秒数
+
+
         binary_log::Log_event_type type = (binary_log::Log_event_type)buffer[1 + EVENT_TYPE_OFFSET];
         switch (type) {
             case binary_log::FORMAT_DESCRIPTION_EVENT: {
-                printf("FORMAT_DESCRIPTION_EVENT!\n");
+//                printf("FORMAT_DESCRIPTION_EVENT!\n");
                 binary_log::Format_description_event *fde_tmp = new binary_log::Format_description_event(4, "8.017");
                 char *buf = (char *) malloc(sizeof(char *) * (length + 1));
                 memcpy(buf, buffer + 1, length - 1);
                 fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(buffer + 1), fde_tmp);
-                fde->print_event_info(std::cout);
+//                fde->print_event_info(std::cout);
                 break;
             }
             case binary_log::TABLE_MAP_EVENT:{
-                printf("TABLE_MAP_EVENT!\n");
+//                printf("TABLE_MAP_EVENT!\n");
                 auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(buffer + 1), fde);
                 std::string full_table_name = ev->get_db_name()+'.'+ev->get_table_name();
                 auto it = tables.find(full_table_name);
@@ -96,7 +123,7 @@ namespace rpl{
 //            下面三个rows event完全可以使用一套代码，主要处理逻辑的差别在Event_Handler中的unpack中
 //             但是考虑到后面可能会加不一样的处理逻辑，在这是分开处理的
             case binary_log::WRITE_ROWS_EVENT: {
-                printf("WRITE_ROWS_EVENTS!\n");
+//                printf("WRITE_ROWS_EVENTS!\n");
                 auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(buffer + 1), fde);
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
@@ -110,14 +137,16 @@ namespace rpl{
                 Table *table = it->second;
                 int idx = table_schema->getIdxByName(table_schema->getPrikey());
                 auto col = eventHandler.unpack(ev, reader, table_schema);
-                Row *row = new Row(col[idx], ev->header()->when.tv_sec, false, table_schema->getDBname(), table_schema->getTablename());
+                Row *row = new Row(col[idx], ev->header()->when.tv_sec*1000000+ev->header()->when.tv_usec, false, table_schema->getDBname(), table_schema->getTablename());
+//                Row *row = new Row(col[idx], now, false, table_schema->getDBname(), table_schema->getTablename());
+                row->process_time = now;
                 row->columns = col;
 //                insert_a_record(table, row);
                 pool->submit(std::bind(&MTS_Handler::insert_a_record, this, table, row));
                 break;
             }
             case binary_log::DELETE_ROWS_EVENT:{
-                printf("DELETE_ROWS_EVENT!\n");
+//                printf("DELETE_ROWS_EVENT!\n");
                 auto *ev = new binary_log::Delete_rows_event(reinterpret_cast<const char *>(buffer + 1), fde);
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
@@ -131,14 +160,16 @@ namespace rpl{
                 Table *table = it->second;
                 int idx = table_schema->getIdxByName(table_schema->getPrikey());
                 auto col = eventHandler.unpack(ev, reader, table_schema);
-                Row *row = new Row(col[idx], ev->header()->when.tv_sec, true, table_schema->getDBname(), table_schema->getTablename());
+                Row *row = new Row(col[idx], ev->header()->when.tv_sec*1000000+ev->header()->when.tv_usec, false, table_schema->getDBname(), table_schema->getTablename());
+//                Row *row = new Row(col[idx], now, false, table_schema->getDBname(), table_schema->getTablename());
+                row->process_time = now;
                 row->columns = col;
 //                insert_a_record(table, row);
                 pool->submit(std::bind(&MTS_Handler::insert_a_record, this, table, row));
                 break;
             }
             case binary_log::UPDATE_ROWS_EVENT:{
-                printf("UPDATE_ROWS_EVENT!\n");
+//                printf("UPDATE_ROWS_EVE NT!\n");
                 auto *ev = new binary_log::Update_rows_event(reinterpret_cast<const char *>(buffer + 1), fde);
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
@@ -152,15 +183,19 @@ namespace rpl{
                 Table *table = it->second;
                 int idx = table_schema->getIdxByName(table_schema->getPrikey());
                 auto col = eventHandler.unpack(ev, reader, table_schema);
-                Row *row = new Row(col[idx], ev->header()->when.tv_sec, true, table_schema->getDBname(), table_schema->getTablename());
+                Row *row = new Row(col[idx], ev->header()->when.tv_sec*1000000+ev->header()->when.tv_usec, false, table_schema->getDBname(), table_schema->getTablename());
+//                Row *row = new Row(col[idx], now, false, table_schema->getDBname(), table_schema->getTablename());
+                row->process_time = now;
                 row->columns = col;
 //                insert_a_record(table, row);
                 pool->submit(std::bind(&MTS_Handler::insert_a_record, this, table, row));
                 break;
             }
             default:
-                printf("Other Events!\n");
-//                for (auto k=tables.begin();k!=tables.end();k++){
+//                printf("Other Events!\n");
+;
+//                for (auto k=tables.begin();k!=tables.end();k++){4047690 4459052
+
 //                    std::cout<<"table:"<<k->first<<std::endl;
 //                    auto r= k->second->rows;
 //                    for (auto it=r.begin();it!=r.end();it++){
@@ -176,8 +211,8 @@ namespace rpl{
     }
 
     int MTS_Handler::insert_a_record(Table *table, Row *row) {
+
         //可以把入队代码放到解析事务的代码中一起加锁，保证入队顺序的严格一致
-        std::cout<<row->table_name<<" "<<row->columns[0]<<" "<<row->columns[1]<<std::endl;
         auto it = q_map.find(row->primary_key);
         SafeQueue<Row *> * q;
         if (it==q_map.end()){
@@ -192,6 +227,18 @@ namespace rpl{
             q_cv.wait(lock);
         }
         table->insert_row(row);
+
+        std::chrono::system_clock::time_point time_point_now = std::chrono::system_clock::now(); // 获取当前时间点
+        std::chrono::system_clock::duration duration_since_epoch
+                = time_point_now.time_since_epoch(); // 从1970-01-01 00:00:00到当前时间点的时长
+        time_t now
+                = std::chrono::duration_cast<std::chrono::microseconds>(duration_since_epoch).count(); // 将时长转换为微秒数
+//        std::time_t now = std::time(0);
+        row->now = now;
+//        std::cout<<row->table_name<<" "<<row->event_time<<" "<<row->now<<std::endl;
+        printf("%s,%lld,%lld\n",row->table_name.c_str(),now - row->event_time,now - pretime);
+//        pretime = row->event_time;
+//        table->g 140898802 54
         q->q.pop();
         q_cv.notify_all();
     }

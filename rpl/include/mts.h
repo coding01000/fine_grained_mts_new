@@ -15,6 +15,7 @@ namespace rpl{
         ThreadPool *pool;
         std::unordered_map<std::string, SafeQueue<Row *> * > q_map; //未执行的序列
         std::condition_variable q_cv;
+
     public:
         int init();
         int run();

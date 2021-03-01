@@ -41,15 +41,15 @@ namespace rpl{
     Row * Table::get(std::string primary_key, uint64_t time) {
         auto it = rows.find(primary_key);
         //如果没有找到或者最新的数据的时间戳小于当前时间，等待一段时间来来获取最新值
-        if (it==rows.end()||it->second->next->event_time<time){
+        if (it==rows.end()||it->second->next==NULL||it->second->next->event_time<time){
             sleep(1);
         }
         it = rows.find(primary_key);
-        if (it==rows.end()||it->second->next->event_time<time){
+        if (it==rows.end()||it->second->next==NULL){
             return NULL;
         }
         Row *tmp = it->second->next;
-        while (tmp&&tmp->next->event_time>time){
+        while (tmp&&tmp->event_time>time){
             tmp = tmp->next;
         }
         return tmp;

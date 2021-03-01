@@ -15,6 +15,8 @@ namespace rpl{
         std::string table_name;
         Row * next;
         uint64_t event_time; //todo：记住处理event_time相同的情况
+        uint64_t now;
+        uint64_t process_time;
         bool is_deleted;
     public:
         Row();
