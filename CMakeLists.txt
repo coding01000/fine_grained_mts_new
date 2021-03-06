@@ -8,6 +8,7 @@ include_directories(
         ./event_unpack/include
         ./rpl/include
         ./thread_pool/include
+        ./cfg/include
 #        /usr/local/mysql-connector-c++/include/
         )
 
@@ -22,6 +23,7 @@ ADD_SUBDIRECTORY(./binlog)
 ADD_SUBDIRECTORY(./event_unpack)
 ADD_SUBDIRECTORY(./rpl)
 ADD_SUBDIRECTORY(./thread_pool)
+ADD_SUBDIRECTORY(./cfg)
 
 ADD_EXECUTABLE(fine_grained_mts test.cc)
 
@@ -32,4 +34,5 @@ TARGET_LINK_LIBRARIES(fine_grained_mts
         event_unpack_lib
         rpl_lib
         thread_pool_lib
+        cfg_lib
         )

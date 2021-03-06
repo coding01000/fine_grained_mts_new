@@ -5,8 +5,9 @@ namespace binary_log{
     Event_Handler::Event_Handler() {
         mysql = mysql_init(nullptr);
         mysql->reconnect = 1;
-        mysql = mysql_real_connect(mysql, "10.24.10.121", "root", "oj123456789",
-                                   NULL, 3306, NULL, 0);
+        Master_info masterInfo;
+        mysql = mysql_real_connect(mysql, masterInfo.host.c_str(), masterInfo.user_name.c_str(), masterInfo.pwd.c_str(),
+                                   NULL, masterInfo.port, NULL, 0);
     }
 
     std::vector<std::string> Event_Handler::unpack(Rows_event *ev, Event_reader &reader,
@@ -50,6 +51,7 @@ namespace binary_log{
     }
 
     TableSchema* Event_Handler::unpack(Table_map_event *ev) {
+        std::unique_lock<std::mutex> lock(mu);
         uint64_t table_id = ev->get_table_id();
         std::string full_name = ev->get_db_name() + '.' + ev->get_table_name();
         auto it = table_schemas.find(table_id);
@@ -57,7 +59,7 @@ namespace binary_log{
             std::string tmpSchemaDbTable = it->second->getDBname() + '.' + it->second->getTablename();
             if (full_name == tmpSchemaDbTable) {
                 //table-id,db,tablen all same, skip
-                return nullptr;
+                return it->second;
             }
             delete it->second;
             table_schemas.erase(it);

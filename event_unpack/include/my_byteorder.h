@@ -6,6 +6,7 @@
 
 #include <string.h>
 #include <sys/types.h>
+#include "arpa/inet.h"
 
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>

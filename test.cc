@@ -1,4 +1,5 @@
 #include "mts.h"
+#include "master_info.h"
 
 int main()
 {

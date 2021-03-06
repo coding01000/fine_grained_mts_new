@@ -4,6 +4,8 @@
 #include "binary_log.h"
 #include "mysql/mysql.h"
 #include "unordered_map"
+#include "master_info.h"
+#include "mutex"
 
 namespace binary_log{
     class Event_Handler{
@@ -11,6 +13,7 @@ namespace binary_log{
         std::vector<std::string> unpack(Rows_event *ev, Event_reader &reader, TableSchema *table);
         MYSQL *mysql;
         std::unordered_map<uint64_t, TableSchema *> table_schemas;
+        std::mutex mu;
     public:
         Event_Handler();
         std::vector<std::string> unpack(Write_rows_event *ev, Event_reader &reader, TableSchema *table);
