@@ -13,81 +13,114 @@ namespace rpl{
     }
 
     bool start = true;
+    std::string table_name = "tpcc.ORDER_LINE";
     time_t pretime = get_now();
-    std::vector<event_buffer>* buffers=NULL;
+    uint64_t trx = 0;
+    uint64_t event = 0;
+    uint64_t a = 0;
+//    std::vector<std::shared_ptr<event_buffer>>* buffers=NULL;129145
+    std::shared_ptr<std::vector<std::shared_ptr<event_buffer>>> buffers=NULL;
 
     int MTS_Handler::init() {
-        pool = new ThreadPool(5);
-        process_submiter = new ThreadPool(1);
-        process_submiter->init();
+        pool = new ThreadPool(6); // 3 128914
         pool->init();
+        commiter1 = new Commiter(this, "com1");
+        commiter2 = new Commiter(this, "com2");
         eventFetcher = new Binlog_file_event_fetcher("/Users/mac/CLionProjects/fine_grained_mts/mysql-bin.000032");
 //        eventFetcher = new Remote_event_fetcher();
         return 0;
     }
-//    auto process_submiter = new ThreadPool(1);
     int MTS_Handler::run() {
-        uint8_t *buf;
-        int length;
+        commiter1->commit();
+        commiter2->commit();
         do{
-            if (eventFetcher->fetch_a_event(buf, length)){
+            std::shared_ptr<event_buffer> eb(new event_buffer());
+            if (eventFetcher->fetch_a_event(eb->buffer, eb->length)){
                 printf("fetch event eof");
                 break;
             }
-//            if (start){
-//                pretime = get_now();
-//            }
-//            process_submiter->submit(std::bind(&MTS_Handler::handle_, this, buf, length));
-            process_submiter->submit(std::bind(&MTS_Handler::process, this, buf, length));
-//            handle_(buf, length);
-//            handle(buf, length);
+            ++event;
+            process(eb);
         }while (true);
-        process_submiter->shutdown();
+        printf("--------%lld-----%d\n", get_now()-pretime, pool->m_queue.size());
         pool->shutdown();
-        printf("------%lld\n", get_now()-pretime);
+        printf("--------%lld-----%d\n", get_now()-pretime, pool->m_queue.size());
+        commiter1->shut_down();
+        commiter2->shut_down();
+        printf("------%lld-----%lld----%lld\n", get_now()-pretime, trx, event);
+        std::cout<<a<<std::endl;
+//        std::cout<<commit_que.size()<<" "<<trx_que.size()<<std::endl;
+//        std::cout<<trx_que.q.top().xid<<std::endl;
+//        trx_que.q.pop();
+//        std::cout<<trx_que.q.top().xid<<std::endl;
+        return 0;
     }
-
-    void MTS_Handler::process(uint8_t *buffer, int length) {
+    int n = 1;
+    int cnt = 0;
+    int MTS_Handler::process(std::shared_ptr<event_buffer> eb) {
+        uint8_t *buffer = eb->buffer;
         if (!buffers){
-             buffers = new std::vector<event_buffer>();
+             buffers = std::make_shared<std::vector<std::shared_ptr<event_buffer>>>();
         }
         binary_log::Log_event_type type = (binary_log::Log_event_type)buffer[EVENT_TYPE_OFFSET];
         switch (type) {
             case binary_log::FORMAT_DESCRIPTION_EVENT:{
-                printf("FORMAT_DESCRIPTION_EVENT!\n");
                 binary_log::Format_description_event *fde_tmp = new binary_log::Format_description_event(4, "8.017");
-                char *buf = (char *) malloc(sizeof(char *) * (length + 1));
-                memcpy(buf, buffer, length);
                 fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(buffer), fde_tmp);
                 break;
             }
             case binary_log::XID_EVENT:{
-                pool->submit(std::bind(&MTS_Handler::handle, this, buffers));
+//                auto xid_event = new binary_log::Xid_event(reinterpret_cast<const char *>(eb->buffer), fde);
+                uint64_t xid = n++;
+                commiter1->push_commit_que(xid);
+                commiter2->push_commit_que(xid);
+//                handle(buffers, xid);
+                pool->submit(std::bind(&MTS_Handler::handle, this, buffers, xid));
                 buffers = NULL;
+                ++trx;
                 break;
+            }
+            case binary_log::TABLE_MAP_EVENT:{
+                auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(buffer), fde);
+ //               std::string full_table_name = ev->get_db_name()+'.'+ev->get_table_name();
+//                auto it = tables.find(full_table_name);
+//                auto *table_schema = eventHandler.unpack(ev);
+//                //如果没有这个表则创建这个表，并构建schema
+//                if (it == tables.end()){
+//                    std::cout << ++cnt<< std::endl;
+//                    Table *table = new Table(full_table_name);
+//                    table->schema = new binary_log::TableSchema(*table_schema);
+//                    table->_pk = table_schema->getPrikey();
+//                    tables[full_table_name] = table;
+//                }
+//                break;
             }
             default:{
-                event_buffer tmp;
-                tmp.buffer = new uint8_t[length];
-                memcpy(tmp.buffer, buffer, length);
-                tmp.length = length;
-                buffers->push_back(tmp);
+                buffers->push_back(eb);
                 break;
             }
         }
+        return 0;
     }
 
-    int MTS_Handler::handle(std::vector<event_buffer> *buffers) {
-
+    int MTS_Handler::handle(std::shared_ptr<std::vector<std::shared_ptr<event_buffer>>> buffers, uint64_t xid) {
+        Trx_rows* trxRows1 = new Trx_rows();
+        Trx_rows* trxRows2 = new Trx_rows();
+        trxRows1->xid = xid;
+        trxRows2->xid = xid;
+        std::vector<Trx_rows *> trxRows = {trxRows1, trxRows2};
         for (auto it=buffers->begin();it!=buffers->end();it++){
-            uint8_t *buffer = it->buffer;
-            int length = it->length;
-            handle_(buffer, length);
+            handle_(*it, trxRows);
         }
+//        if (!trxRows1->rows.empty())
+        commiter1->push_trx_map(xid, trxRows1);
+//        if (!trxRows2->rows.empty())
+        commiter2->push_trx_map(xid, trxRows2);
+        return 0;
     }
-    int MTS_Handler::handle_(uint8_t *buffer, int length) {
-
-        time_t now = get_now(); // 将时长转换为微秒数
+    int MTS_Handler::handle_(std::shared_ptr<event_buffer> eb, std::vector<Trx_rows *> trxRows) {
+        uint8_t *buffer = eb->buffer;
+        int length = eb->length;
 
         binary_log::Log_event_type type = (binary_log::Log_event_type)buffer[EVENT_TYPE_OFFSET];
         switch (type) {
@@ -110,23 +143,25 @@ namespace rpl{
             }
             case binary_log::TABLE_MAP_EVENT:{
 //                printf("TABLE_MAP_EVENT!\n");
+//                uint64_t start = get_now();
                 auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(buffer), fde);
                 std::string full_table_name = ev->get_db_name()+'.'+ev->get_table_name();
                 auto it = tables.find(full_table_name);
+                auto *table_schema = eventHandler.unpack(ev);
                 //如果没有这个表则创建这个表，并构建schema
                 if (it == tables.end()){
-                    auto *table_schema = eventHandler.unpack(ev);
                     Table *table = new Table(full_table_name);
                     table->schema = new binary_log::TableSchema(*table_schema);
                     table->_pk = table_schema->getPrikey();
                     tables[full_table_name] = table;
                 }
+//                delete ev;
                 break;
             }
 //            下面三个rows event完全可以使用一套代码，主要处理逻辑的差别在Event_Handler中的unpack中
 //             但是考虑到后面可能会加不一样的处理逻辑，在这是分开处理的
             case binary_log::WRITE_ROWS_EVENT: {
-                printf("WRITE_ROWS_EVENTS!\n");
+//                printf("WRITE_ROWS_EVENTS!\n");
                 auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(buffer), fde);
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
@@ -137,20 +172,27 @@ namespace rpl{
                 if (it==tables.end()){
                     printf("No Match Table!\n");
                 }
-                Table *table = it->second;
+//                std::cout<<table_full_name<<std::endl;
                 int idx = table_schema->getIdxByName(table_schema->getPrikey());
                 auto col = eventHandler.unpack(ev, reader, table_schema);
-                Row *row = new Row(col[idx], ev->header()->when.tv_sec*1000000+ev->header()->when.tv_usec, false, table_schema->getDBname(), table_schema->getTablename());
+                Row *row = new Row(col[idx], ev->header()->when.tv_sec*1000000+ev->header()->when.tv_usec, false, table_full_name, table_schema->getTablename());
 //                Row *row = new Row(col[idx], now, false, table_schema->getDBname(), table_schema->getTablename());
-                row->process_time = now;
                 row->columns = col;
+                if (table_full_name==table_name){
+                    trxRows[0]->rows.push_back(row);
+
+                }else{
+                    trxRows[1]->rows.push_back(row);
+                }
 //                table->insert_row(row);
-                insert_a_record(table, row);
+//                delete ev;
+//                commit_cv.notify_all();
+//                insert_a_record(table, row);
 //                pool->submit(std::bind(&MTS_Handler::insert_a_record, this, table, row));
                 break;
             }
             case binary_log::DELETE_ROWS_EVENT:{
-                printf("DELETE_ROWS_EVENT!\n");
+//                printf("DELETE_ROWS_EVENT!\n");
                 auto *ev = new binary_log::Delete_rows_event(reinterpret_cast<const char *>(buffer), fde);
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
@@ -161,19 +203,27 @@ namespace rpl{
                 if (it==tables.end()){
                     printf("No Match Table!\n");
                 }
-                Table *table = it->second;
                 int idx = table_schema->getIdxByName(table_schema->getPrikey());
                 auto col = eventHandler.unpack(ev, reader, table_schema);
-                Row *row = new Row(col[idx], ev->header()->when.tv_sec*1000000+ev->header()->when.tv_usec, false, table_schema->getDBname(), table_schema->getTablename());
+                Row *row = new Row(col[idx], ev->header()->when.tv_sec*1000000+ev->header()->when.tv_usec, false, table_full_name, table_schema->getTablename());
 //                Row *row = new Row(col[idx], now, false, table_schema->getDBname(), table_schema->getTablename());
-                row->process_time = now;
                 row->columns = col;
-                insert_a_record(table, row);
+                if (table_full_name==table_name){
+                    trxRows[0]->rows.push_back(row);
+
+                }else{
+                    trxRows[1]->rows.push_back(row);
+                }
+//                trxRows->rows.push_back(row);
+//                delete ev;
+//                commit_cv.notify_all();
+//                table->insert_row(row);
+//                insert_a_record(table, row);
 //                pool->submit(std::bind(&MTS_Handler::insert_a_record, this, table, row));
                 break;
             }
             case binary_log::UPDATE_ROWS_EVENT:{
-                printf("UPDATE_ROWS_EVE NT!\n");
+//                printf("UPDATE_ROWS_EVE NT!\n");
                 auto *ev = new binary_log::Update_rows_event(reinterpret_cast<const char *>(buffer), fde);
                 char *buf = new char[ev->row.size()];
                 std::copy(ev->row.begin(), ev->row.end(), buf);
@@ -184,61 +234,100 @@ namespace rpl{
                 if (it==tables.end()){
                     printf("No Match Table!\n");
                 }
-                Table *table = it->second;
                 int idx = table_schema->getIdxByName(table_schema->getPrikey());
                 auto col = eventHandler.unpack(ev, reader, table_schema);
-                Row *row = new Row(col[idx], ev->header()->when.tv_sec*1000000+ev->header()->when.tv_usec, false, table_schema->getDBname(), table_schema->getTablename());
+                Row *row = new Row(col[idx], ev->header()->when.tv_sec*1000000+ev->header()->when.tv_usec, false, table_full_name, table_schema->getTablename());
 //                Row *row = new Row(col[idx], now, false, table_schema->getDBname(), table_schema->getTablename());
-                row->process_time = now;
                 row->columns = col;
-                insert_a_record(table, row);
+                if (table_full_name==table_name){
+                    trxRows[0]->rows.push_back(row);
+
+                }else{
+                    trxRows[1]->rows.push_back(row);
+                }
+//                row->full_name = table_full_name;
+//                trxRows->rows.push_back(row);
+//                delete ev;
+//                commit_cv.notify_all();
+//                table->insert_row(row);
+//                insert_a_record(table, row);
 //                pool->submit(std::bind(&MTS_Handler::insert_a_record, this, table, row));
                 break;
             }
             default:
-//                printf("Other Events!\n");
-//                for (auto k=tables.begin();k!=tables.end();k++){4047690 4459052
-
-//                    std::cout<<"table:"<<k->first<<std::endl;
-//                    auto r= k->second->rows;
-//                    for (auto it=r.begin();it!=r.end();it++){
-//                        std::cout<<it->first<<" ";
-//                        if (it->second->next){
-//                            std::cout<<it->second->next->columns[0]<<it->second->next->columns[1]<<it->second->next->columns[2];
-//                        }
-//                        std::cout<<std::endl;
-//                    }
-//                }
                 break;
         }
+        return 0;
     }
 
-    int MTS_Handler::insert_a_record(Table *table, Row *row) {
 
-        //可以把入队代码放到解析事务的代码中一起加锁，保证入队顺序的严格一致
-        auto it = q_map.find(row->primary_key);
-        SafeQueue<Row *> * q;
-        if (it==q_map.end()){
-            q = new SafeQueue<Row *>();
-            q_map[row->primary_key] = q;
-        }else{
-            q = it->second;
-        }
-        q->enqueue(row);
-        std::unique_lock<std::mutex> lock(q->mu);
-        while (q->q.front()->event_time!=row->event_time){
-            q_cv.wait(lock);
-        }
-        table->insert_row(row);
+    int Commiter::commit_(){
+        std::unique_lock<std::mutex> lock(commit_mu);
+        while (!commit_shut_down){
+            ++cnt;
+            while ((!commit_shut_down)&&(commit_que.empty())){
+                commit_cv.wait(lock);
+            }
 
-        auto now = get_now();
-        row->now = get_now();
-//        std::cout<<row->table_name<<" "<<row->event_time<<" "<<row->now<<std::endl;
-        std::cout<<row->table_name<<" "<<row->columns[0]<<" "<<row->columns[1]<<std::endl;
-//        printf("%s,%lld,%lld\n",row->table_name.c_str(),now - row->event_time,now - pretime);
-//        pretime = row->event_time;
-//        table->g 140898802 54 311052349
-        q->q.pop();
-        q_cv.notify_all();
+            if (commit_shut_down&&commit_que.empty()){
+                break;
+            }
+            uint64_t now_xid = commit_que.front();
+            while ((!commit_shut_down)&&(!trx_map.find(now_xid))){
+                commit_cv.wait(lock);
+            }
+            if (commit_shut_down&&commit_que.empty()){
+                break;
+            }
+            Trx_rows *trxRows = trx_map.get(now_xid);
+            for (auto it = trxRows->rows.begin(); it != trxRows->rows.end();it++)
+            {
+                auto table = mtsHandler->tables.find((*it)->full_name)->second;
+//                std::cout<<(*it)->table_name<<" "<<(*it)->columns[0]<<" "<<(*it)->columns[1]<<std::endl;
+                table->insert_row(*it);
+            }
+            ++a;
+            trx_map.erase(now_xid);
+            commit_que.pop();
+            if (cnt==129293){
+                std::cout <<"aa"<< std::endl;
+                break;
+            }
+//            delete trxRows;
+        }
+        std::cout<<name<<" "<<(get_now()-start)<<std::endl;
+        return 0;
+    }
+
+    int Commiter::commit(){
+        thread = std::thread(&Commiter::commit_, this);
+        start = get_now();
+        return 0;
+    }
+
+    void Commiter::shut_down() {
+        commit_shut_down = true;
+        commit_cv.notify_all();
+        thread.join();
+    }
+
+    int Commiter::push_commit_que(uint64_t xid) {
+        commit_que.push(xid);
+        return 0;
+    }
+
+    int Commiter::push_trx_map(uint64_t xid, Trx_rows *trxRows) {
+        trx_map.insert(xid, trxRows);
+        commit_cv.notify_all();
+        return 0;
+    }
+
+    event_buffer::event_buffer() {
+        buffer = nullptr;
+        length = 0;
+    }
+    event_buffer::event_buffer(uint8_t *buf, int len) {
+        length = len;
+        buffer = buf;
     }
 }

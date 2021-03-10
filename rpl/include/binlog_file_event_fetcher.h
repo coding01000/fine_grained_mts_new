@@ -4,6 +4,8 @@
 #include "cstdio"
 #include "event_header.h"
 #include "binary_log.h"
+#include "ring_buffer.h"
+#include "my_byteorder.h"
 
 class Binlog_file_event_fetcher: public Event_fetcher{
 
@@ -16,6 +18,11 @@ private:
     uint32_t event_pos;
     uint32_t event_next;
     uint64_t max_file_size;
+    uint64_t read_size;
+    uint64_t buffer_size;
+    uint64_t has_read;
+    uint8_t *tmpBuffer;
+    RingBuffer<uint8_t> *ringBuffer;
 };
 
 #endif //FINE_GRAINED_MTS_BINLOG_FILE_EVENT_FETCHER_H

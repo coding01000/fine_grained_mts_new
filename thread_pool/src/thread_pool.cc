@@ -7,14 +7,16 @@ void ThreadWorker::operator()() {
     std::function<void()> func;//定义基础函数类func
     bool dequeued;//是否正在取出队列中元素
     //判断线程池是否关闭，没有关闭，循环提取
-    while (!m_pool->m_shutdown) {
+    while (!m_pool->m_shutdown||m_pool->m_queue.size()>0) {
         {
             //为线程环境锁加锁，互访问工作线程的休眠和唤醒
+//            std::cout<<m_pool->m_queue.size()<<std::endl;
             std::unique_lock<std::mutex> lock(m_pool->m_conditional_mutex);
-            if (m_pool->m_queue.empty()) {
-                m_pool->m_conditional_lock.wait(lock);
-            }
             dequeued = m_pool->m_queue.dequeue(func);
+            if (!dequeued) {
+                m_pool->m_conditional_lock.wait(lock);
+                dequeued = m_pool->m_queue.dequeue(func);
+            }
         }
         if (dequeued) {
             func();

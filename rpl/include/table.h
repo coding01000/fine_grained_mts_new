@@ -8,6 +8,7 @@ namespace rpl{
     public:
         std::string table_name;
         std::string _pk;
+        std::mutex mu;
         binary_log::TableSchema *schema;
         std::unordered_map<std::string, Hash_Header *> rows;
     public:

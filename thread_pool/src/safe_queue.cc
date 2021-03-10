@@ -8,25 +8,25 @@ SafeQueue<T>::SafeQueue() {}
 
 template<typename T>
 bool SafeQueue<T>::empty() {
-    std::unique_lock<std::mutex> lock(mu);
+    std::lock_guard<std::mutex> lock(mu);
     return q.empty();
 }
 
 template<typename T>
 int SafeQueue<T>::size() {
-     std::unique_lock<std::mutex> lock(mu);
+     std::lock_guard<std::mutex> lock(mu);
     return q.size();
 }
 
 template<typename T>
 void SafeQueue<T>::enqueue(T &t) {
-    std::unique_lock<std::mutex> lock(mu);
+    std::lock_guard<std::mutex> lock(mu);
     q.push(t);
 }
 
 template<typename T>
 bool SafeQueue<T>::dequeue(T &t) {
-    std::unique_lock<std::mutex> lock(mu);
+    std::lock_guard<std::mutex> lock(mu);
     if(q.empty()){
         return false;
     }

@@ -10,7 +10,7 @@ namespace rpl{
     class Row{
     public:
         std::vector<std::string> columns;
-        std::string db_name;
+        std::string full_name;
         std::string primary_key;
         std::string table_name;
         Row * next;

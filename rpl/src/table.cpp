@@ -11,13 +11,16 @@ namespace rpl{
     Table::~Table() {}
 
     uint8_t Table::insert_row(Row *row) {
+        std::unique_lock<std::mutex> lock(mu);
         auto it = this->rows.find(row->primary_key);
         if(it == this->rows.end()){
             Hash_Header *hash_header = new Hash_Header();
             this->rows[row->primary_key] = hash_header;
             hash_header->push_row(row);
+            lock.unlock();
         }else{
             //如果是同一个时间戳的，那么就替换，不用插入
+            lock.unlock();
             it->second->push_row(row);
 //        if (row->event_time==it->second->event_time){
 //            it->second = row;
@@ -42,7 +45,7 @@ namespace rpl{
         auto it = rows.find(primary_key);
         //如果没有找到或者最新的数据的时间戳小于当前时间，等待一段时间来来获取最新值
         if (it==rows.end()||it->second->next==NULL||it->second->next->event_time<time){
-            sleep(1);
+//            sleep(1);
         }
         it = rows.find(primary_key);
         if (it==rows.end()||it->second->next==NULL){

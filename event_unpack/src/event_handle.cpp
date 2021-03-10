@@ -49,9 +49,9 @@ namespace binary_log{
         unpack((Rows_event *)ev, reader, table);
         return unpack((Rows_event *)ev, reader, table);
     }
-
+    int cnt = 0;
     TableSchema* Event_Handler::unpack(Table_map_event *ev) {
-        std::unique_lock<std::mutex> lock(mu);
+        std::lock_guard<std::mutex> lock(mu);
         uint64_t table_id = ev->get_table_id();
         std::string full_name = ev->get_db_name() + '.' + ev->get_table_name();
         auto it = table_schemas.find(table_id);
@@ -61,16 +61,16 @@ namespace binary_log{
                 //table-id,db,tablen all same, skip
                 return it->second;
             }
-            delete it->second;
+//            delete it->second;
             table_schemas.erase(it);
         } else {
-            for (auto it = table_schemas.begin(); it != table_schemas.end(); it++) {
-                if (full_name == (it->second->getDBname() + '.' + it->second->getTablename())) {
-                    delete it->second;
-                    table_schemas.erase(it);
-                    break;
-                }
-            }
+//            for (auto it = table_schemas.begin(); it != table_schemas.end(); it++) {
+//                if (full_name == (it->second->getDBname() + '.' + it->second->getTablename())) {
+//                    delete it->second;
+//                    table_schemas.erase(it);
+//                    break;
+//                }
+//            }
 
         }
         char sql[1024];
@@ -81,6 +81,7 @@ namespace binary_log{
 //        std::cout<<sql<<std::endl;
         mysql_query(mysql, sql);
         MYSQL_RES *res = mysql_store_result(mysql);
+//        lock.unlock();
         if (res == NULL) {
             std::cout<<"query table schema error, db:"<<ev->get_db_name().c_str()<<" ,table:"<<ev->get_table_name().c_str()<<" ,offset_:";
             return nullptr;
@@ -90,6 +91,7 @@ namespace binary_log{
             return nullptr;
         }
         //add new table schema to tables_
+//        std::cout << ++cnt<<std::endl;
         std::pair<uint64_t, TableSchema*> kv;
         kv.first = ev->get_table_id();
         kv.second = new TableSchema(ev->get_db_name(), ev->get_table_name());
@@ -99,7 +101,7 @@ namespace binary_log{
         int row_pos = 0;
         while((row = mysql_fetch_row(res))) {
             if(!kv.second->createField(row[0], row[1], row[2])) {
-                delete kv.second;
+//                delete kv.second;
                 return nullptr;
             }
             //for mysql 5.6 or later
