@@ -11,6 +11,8 @@ class Binlog_file_event_fetcher: public Event_fetcher{
 
 public:
     Binlog_file_event_fetcher(const char *file_dir);
+    Binlog_file_event_fetcher(std::vector<std::string> files);
+    int open_a_file(const char *file_dir);
     int fetch_a_event(uint8_t* &buf, int &length);
 
 private:
@@ -22,6 +24,8 @@ private:
     uint64_t buffer_size;
     uint64_t has_read;
     uint8_t *tmpBuffer;
+    std::vector<std::string> files;
+    std::vector<std::string>::iterator iter;
     RingBuffer<uint8_t> *ringBuffer;
 };
 

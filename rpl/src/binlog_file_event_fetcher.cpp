@@ -17,15 +17,52 @@ Binlog_file_event_fetcher::Binlog_file_event_fetcher(const char *file_dir) {
     max_file_size = ftell(fd);
     fseek(fd, BIN_LOG_HEADER_SIZE, SEEK_SET);
     read_size = 1024*1024*1;
-    buffer_size = 1024*1024*20;
+    buffer_size = 1024*1024*100;
     ringBuffer = new RingBuffer<uint8_t>(buffer_size);
     tmpBuffer = new uint8_t[read_size];
     has_read = 0;
 }
 
+Binlog_file_event_fetcher::Binlog_file_event_fetcher(std::vector<std::string> _files) {
+    files = _files;
+    iter = files.begin();
+    fd = nullptr;
+    read_size = 1024*1024*0.5;
+    buffer_size = 1024*1024*200;
+    ringBuffer = new RingBuffer<uint8_t>(buffer_size);
+    tmpBuffer = new uint8_t[read_size];
+    open_a_file(iter->c_str());
+}
+
+int Binlog_file_event_fetcher::open_a_file(const char *file_dir) {
+    if (file_dir==NULL){
+        printf("a_binlog:bin_file == NULL? %s %d \n", ERR_POST);
+        return 1;
+    }
+    if ((fd=fopen(file_dir,"r"))==NULL){
+        printf("a_binlog:fopen() binlog file error %s %d \n",ERR_POST);
+        perror("openfile error");
+        return 2;
+    }
+    std::cout<<file_dir<<std::endl;
+
+    event_pos = 0;
+    event_next = BIN_LOG_HEADER_SIZE;
+    fseek(fd,OFFSET_0,SEEK_END);
+    max_file_size = ftell(fd);
+    fseek(fd, BIN_LOG_HEADER_SIZE, SEEK_SET);
+    ringBuffer->clean();
+    has_read = 0;
+    iter++;
+}
+
 int Binlog_file_event_fetcher::fetch_a_event(uint8_t* &buf, int &length) {
     if ((max_file_size - (uint64_t)event_next) <= LOG_EVENT_HEADER_LEN){
-        return 1;
+        if (iter!=files.end()){
+            open_a_file(iter->c_str());
+        }else{
+            return 1;
+        }
     }
     if (max_file_size > has_read){
         read_size = read_size>max_file_size-has_read ? max_file_size-has_read : read_size;

@@ -2,7 +2,8 @@
 #define FINE_GRAINED_MTS_THREAD_POOL_H
 #include <stdint.h>
 #include "iostream"
-//#include "safe_queue.h"
+#include "safe_queue.h"
+#include <boost/lockfree/queue.hpp>
 #include "../src/safe_queue.cc"
 #include <functional>
 #include <thread>
@@ -23,6 +24,7 @@ class ThreadPool{
 public:
     bool m_shutdown; //线程池是否关闭
     SafeQueue<std::function<void()>> m_queue;//执行函数安全队列，即任务队列
+//    boost::lockfree::queue<std::function<void()> > m_queue{10000000};//执行函数安全队列，即任务队列
     std::vector<std::thread> m_threads; //工作线程队列
     std::mutex m_conditional_mutex;//线程休眠锁互斥变量
     std::condition_variable m_conditional_lock; //线程环境锁，让线程可以处于休眠或者唤醒状态
@@ -32,10 +34,11 @@ public:
     ThreadPool(ThreadPool &&) = delete; // 拷贝构造函数，允许右值引用
     ThreadPool & operator=(const ThreadPool &) = delete; // 赋值操作
     ThreadPool & operator=(ThreadPool &&) = delete; //赋值操作
-    void init();
+    void init(bool bind = false);
     void shutdown();
     template<typename F, typename...Args>
-    auto submit(F&& f, Args&&... args) -> std::future<decltype(f(args...))>{
+//    auto submit(F&& f, Args&&... args) -> std::future<decltype(f(args...))>{
+    void submit(F&& f, Args&&... args){
         // Create a function with bounded parameters ready to execute
 //        std::bind
         std::function<decltype(f(args...))()> func = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
@@ -47,10 +50,11 @@ public:
         };
         // Enqueue generic wrapper function
         m_queue.enqueue(wrapper_func);
+//        m_queue.push(&wrapper_func);
         // Wake up one thread if its waiting
         m_conditional_lock.notify_one();
         // Return future from promise
-        return task_ptr->get_future();
+//        return task_ptr->get_future();
     };
 };
 

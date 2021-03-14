@@ -2,7 +2,7 @@
 #define FINE_GRAINED_MTS_EVENT_HANDLE_H
 #include "table_schema.h"
 #include "binary_log.h"
-#include "mysql/mysql.h"
+#include "mysql.h"
 #include "unordered_map"
 #include "master_info.h"
 #include "mutex"

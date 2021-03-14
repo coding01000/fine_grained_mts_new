@@ -2,7 +2,7 @@
 #define FINE_GRAINED_MTS_REMOTE_EVENT_FETCHER_H
 #include "event_fetcher.h"
 #include "master_info.h"
-#include "mysql/mysql.h"
+#include "mysql.h"
 
 class Remote_event_fetcher: public Event_fetcher{
 public:

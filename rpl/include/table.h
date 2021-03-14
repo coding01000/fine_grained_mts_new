@@ -2,15 +2,19 @@
 #define FINE_GRAINED_MTS_TABLE_H
 #include "row.h"
 #include "table_schema.h"
+#include "shared_mutex"
+#include "safe_queue.h"
+#include "safe_map.h"
 
 namespace rpl{
     class Table{
     public:
         std::string table_name;
         std::string _pk;
-        std::mutex mu;
+        std::shared_mutex mu;
         binary_log::TableSchema *schema;
-        std::unordered_map<std::string, Hash_Header *> rows;
+//        std::unordered_map<std::string, Hash_Header *> rows;
+        SafeMap<std::string, Hash_Header *> rows;
     public:
         Table();
         ~Table();

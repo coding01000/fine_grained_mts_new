@@ -9,7 +9,7 @@
 template <typename T>
 class SafeQueue{
 public:
-    std::mutex mu;
+    std::shared_mutex mu;
     std::queue<T> q;
 public:
     SafeQueue();
@@ -55,31 +55,4 @@ public:
     }
 };
 
-
-template <typename key, typename val>
-class SafeMap{
-public:
-    std::mutex mu;
-    std::unordered_map<key, val> _map;
-    void insert(key k, val v){
-        std::lock_guard<std::mutex> lockGuard(mu);
-        _map[k] = v;
-    }
-    val get(key k){
-        std::lock_guard<std::mutex> lockGuard(mu);
-        return _map[k];
-    }
-    int find(key k){
-        std::lock_guard<std::mutex> lockGuard(mu);
-        if (_map.find(k)==_map.end()){
-            return 0;
-        }
-        return 1;
-    }
-
-    void erase(key k) {
-        std::lock_guard<std::mutex> lockGuard(mu);
-        _map.erase(k);
-    }
-};
 #endif //FINE_GRAINED_MTS_SAFE_QUEUE_H

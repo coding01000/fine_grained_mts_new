@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rpl_cfg>
+    <is_remote>false</is_remote>
+    <is_single_group>false</is_single_group>
+    <files>
+        <file>/root/project/mts/mysql-bin.000035</file>
+        <file>/root/project/mts/mysql-bin.000035</file>
+    </files>
+    <parse_pool>10</parse_pool>
+    <group_num>2</group_num>
+    <group_pool>
+        <pool>10</pool>
+        <pool>3</pool>
+    </group_pool>
+</rpl_cfg>

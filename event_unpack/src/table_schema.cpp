@@ -92,10 +92,10 @@ namespace binary_log{
             field = new FieldTimestamp(name) ;
         } else if (strstr(type, "decimal")!=NULL){
             FieldDecimal *fd = new FieldDecimal(name);
-            char *p_start = strstr(type, "(")+1;
-            char *p_end = strstr(type, ",");
-            char *s_start = p_end+1;
-            char *s_end = strstr(type, ")");
+            const char *p_start = (strstr(type, "(")+1);
+            const char *p_end = strstr(type, ",");
+            const char *s_start = p_end+1;
+            const char *s_end = strstr(type, ")");
             std::string p, s;
             for (;p_start<p_end;p_start++){
                 p.push_back(*p_start);

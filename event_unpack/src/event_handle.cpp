@@ -27,7 +27,6 @@ namespace binary_log{
             //LOG(INFO)<<"i:"<<i<<" ,BitMap:"<<bitmap.isSet(i);
 
             value = column_field->valueString(reader);
-
             //avoid add field to row->columns twice
             row.push_back(value);
         }

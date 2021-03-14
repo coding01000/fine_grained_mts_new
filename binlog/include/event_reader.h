@@ -40,7 +40,7 @@
 #include "byteorder.h"
 #include <cstring>
 #include <string>
-#include <mysql/mysql.h>
+#include <mysql.h>
 //#include <mysql/mysql_com.h>  // net_field_length_ll, net_field_length_size
 
 namespace binary_log {
