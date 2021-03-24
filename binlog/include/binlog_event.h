@@ -44,6 +44,7 @@
 #include <zlib.h>
 #include "event_reader.h"
 #include "my_checksum.h"
+#include "gperftools/tcmalloc.h"
 
 #if defined(_WIN32)
 #include <Winsock2.h>

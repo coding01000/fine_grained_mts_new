@@ -21,9 +21,39 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include "event_reader.h"
+#include "my_byteorder.h"
 #include <string>
 
 namespace binary_log {
+
+    uint64_t net_field_length_ll1(uchar **packet) {
+        const uchar *pos = *packet;
+        if (*pos < 251) {
+            (*packet)++;
+            return (uint64_t)*pos;
+        }
+        if (*pos == 251) {
+            (*packet)++;
+            return (uint64_t)NULL_LENGTH;
+        }
+        if (*pos == 252) {
+            (*packet) += 3;
+            return (uint64_t)uint2korr(pos + 1);
+        }
+        if (*pos == 253) {
+            (*packet) += 4;
+            return (uint64_t)uint3korr(pos + 1);
+        }
+        (*packet) += 9; /* Must be 254 when here */
+        return (uint64_t)uint8korr(pos + 1);
+    }
+
+    uint8_t net_field_length_size1(const uchar *pos) {
+        if (*pos <= 251) return 1;
+        if (*pos == 252) return 3;
+        if (*pos == 253) return 4;
+        return 9;
+    }
 
     void Event_reader::set_error(const char *error) {
         m_error = error;
@@ -119,13 +149,14 @@ namespace binary_log {
         // It is safe to read the first byte of the transaction_length
         unsigned char *ptr_length;
         ptr_length = reinterpret_cast<unsigned char *>(const_cast<char *>(m_ptr));
-        unsigned int length_size = net_field_length_size(ptr_length);
+        unsigned int length_size = net_field_length_size1(ptr_length);
+//        unsigned int length_size = net_field_length_size1(ptr_length);
         if (!can_read(length_size)) {
             set_error("Cannot read from out of buffer bounds");
             return 0;
         }
         // It is safe to read the full transaction_length from the buffer
-        uint64_t value = ::net_field_length_ll(&ptr_length);
+        uint64_t value = net_field_length_ll1(&ptr_length);
         m_ptr = m_ptr + length_size;
         return value;
     }

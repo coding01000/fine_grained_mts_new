@@ -2,12 +2,16 @@
 #define FINE_GRAINED_MTS_RING_BUFFER_H
 #include "cstdint"
 #include "cstring"
+#include "atomic"
 
 template<typename T>
 class RingBuffer{
 private:
     bool m_empty, m_full;
     T *m_buffer;
+//    std::atomic<uint64_t> m_size;
+//    std::atomic<uint64_t> m_readPos;
+//    std::atomic<uint64_t> m_writePos;
     uint64_t m_size;
     uint64_t m_readPos;
     uint64_t m_writePos;
@@ -42,7 +46,7 @@ public:
         if (m_empty){
             return m_size;
         }
-        if (m_readPos < m_writePos){
+        if (m_readPos <= m_writePos){
             return m_size - m_writePos + m_readPos;
         }
         return m_readPos - m_writePos;
@@ -83,7 +87,7 @@ public:
 
     }
 
-    int read(T *buf, int len){
+    int read(T *&buf, int len){
         if (len < 0){
             return 0;
         }
@@ -94,39 +98,43 @@ public:
             return 0;
         }
         m_full = false;
-        if (m_readPos >= m_writePos){
-            uint64_t right_length = m_size - m_readPos;
-            if (right_length > len){
-                memcpy(buf, m_buffer + m_readPos, len);
-                m_readPos += len;
-                return len;
-            }else {
-                memcpy(buf, m_buffer + m_readPos, right_length);
-                m_readPos = len - right_length;
-                memcpy(buf + right_length, m_buffer, m_readPos);
-                m_empty = (m_readPos == m_writePos);
-                return len;
-            }
-        }
-        if (m_readPos < m_writePos){
-            memcpy(buf, m_buffer + m_readPos, len);
-            m_readPos += len;
-            m_full = (m_readPos == m_writePos);
-            return len;
-        }
+        buf = m_buffer+m_readPos;
+        m_readPos += len;
+        return len;
+//        if (m_readPos >= m_writePos){
+//            uint64_t right_length = m_size - m_readPos;
+//            if (right_length > len){
+//                memcpy(buf, m_buffer + m_readPos, len);
+//                m_readPos += len;
+//                return len;
+//            }else {
+//                memcpy(buf, m_buffer + m_readPos, right_length);
+//                m_readPos = len - right_length;
+//                memcpy(buf + right_length, m_buffer, m_readPos);
+//                m_empty = (m_readPos == m_writePos);
+//                return len;
+//            }
+//        }
+//        if (m_readPos < m_writePos){
+//            memcpy(buf, m_buffer + m_readPos, len);
+//            m_readPos += len;
+//            m_empty = (m_readPos == m_writePos);
+//            return len;
+//        }
     }
 
     uint8_t *read(uint64_t offset, int len){
-        uint8_t *tmp = new uint8_t[len];
-        uint64_t now_readPos = m_readPos;
-        bool now_full = m_full;
-        bool now_empty = m_empty;
-        m_readPos = m_readPos+offset>m_size ? m_readPos+offset-m_size : m_readPos + offset;
-        read(tmp, len);
-        m_readPos = now_readPos;
-        m_empty = now_empty;
-        m_full = now_full;
-        return tmp;
+        return m_buffer+m_readPos+offset;
+//        uint8_t *tmp = new uint8_t[len];
+//        uint64_t now_readPos = m_readPos;
+//        bool now_full = m_full;
+//        bool now_empty = m_empty;
+//        m_readPos = m_readPos+offset>m_size ? m_readPos+offset-m_size : m_readPos + offset;
+//        read(tmp, len);
+//        m_readPos = now_readPos;
+//        m_empty = now_empty;
+//        m_full = now_full;
+//        return tmp;
     }
 };
 

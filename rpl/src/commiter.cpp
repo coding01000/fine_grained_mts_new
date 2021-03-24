@@ -1,13 +1,13 @@
 #include "commiter.h"
-
+#include <time.h>
+#include <sys/time.h>
+#include <condition_variable>
 namespace rpl{
     uint64_t Commiter::no = 0;
-
+    struct timeval tv;
     time_t get_now(){
-        std::chrono::system_clock::time_point time_point_now = std::chrono::system_clock::now(); // 获取当前时间点
-        std::chrono::system_clock::duration duration_since_epoch
-                = time_point_now.time_since_epoch(); // 从1970-01-01 00:00:00到当前时间点的时长
-        return std::chrono::duration_cast<std::chrono::microseconds>(duration_since_epoch).count(); // 将时长转换为微秒数
+        gettimeofday(&tv, NULL);
+        return tv.tv_sec * 1000000 + tv.tv_usec;
     }
     int Commiter::commit_(){
         std::unique_lock<std::mutex> lock(commit_mu);
@@ -16,7 +16,6 @@ namespace rpl{
             while ((!commit_shut_down)&&commit_que.empty()){
                 commit_cv.wait(lock);
             }
-
             if (commit_shut_down&&commit_que.empty()){
                 break;
             }
@@ -34,6 +33,8 @@ namespace rpl{
                 table->insert_row(*it);
             }
             trx_map.erase(now_xid);
+//            if(cnt % 100 == 0 && name == "commiter1")
+//                std::cout << name<< " cnt: " << cnt << " "<< trx_map._map.size() << std::endl;
             commit_que.pop();
 
 //            if (cnt==311888){
@@ -47,6 +48,12 @@ namespace rpl{
 
     int Commiter::commit(){
         thread = std::thread(&Commiter::commit_, this);
+//        cpu_set_t cpuset;
+//        CPU_ZERO(&cpuset);
+//        CPU_SET(no++, &cpuset);
+//        pthread_setaffinity_np(thread.native_handle(),
+//                               sizeof(cpu_set_t), &cpuset);
+//        thread
         start = get_now();
         return 0;
     }
@@ -82,6 +89,15 @@ namespace rpl{
     }
 
     int Trx_info::commit() {
+//        if (commiter->name == "commiter1"){
+//            std::cout<<"commiter1 push map: "<<xid <<";"<<std::endl;
+//        }
+//        if (commiter->name == "commiter0"){
+//            std::cout<<"commiter0 push map: "<<xid <<";"<<std::endl;
+//        }
+//        if (commiter->name == "commiter1" && xid==384){
+//            std::cout<<"commiter1 push map: "<<xid <<";"<<std::endl;
+//        }
         commiter->push_trx_map(xid, trxRows);
         return 0;
     }

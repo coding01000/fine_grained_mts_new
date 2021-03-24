@@ -1,15 +1,14 @@
 #include "replayer.h"
 #include "single_group_replayer.h"
 #include "multi_group_replayer.h"
+//#include "gperftools/"
 
 int main()
 {
-//    cpu_set_t mask;
-//    CPU_ZERO(&mask);
-//    CPU_SET(0, &mask);//将cpu0绑定
-//    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
-//    sched_setaffinity(0, sizeof(cpu_set_t), &mask) ;
-    std::cout<<pthread_self<<std::endl;
+//    auto a = new std::vector<int>(2);
+//    a->push_back(1);
+//    a.emplace_back(1);
+//    std::cout<<a->size()<<std::endl;
 
     Rpl_info rplInfo;
     rpl::Replayer *replayer;
@@ -17,9 +16,20 @@ int main()
         replayer = new rpl::SingleGroupReplayer(rplInfo);
     }else {
         replayer = new rpl::MultiGroupReplayer(rplInfo);
-//    replayer = new rpl::MultiGroupReplayer(rplInfo);
     }
     replayer->init();
     replayer->run();
+//    moodycamel::ConcurrentQueue<int> q;
+//    q.enqueue(1);
+//    q.enqueue(2);
+//    std::cout<<q.size_approx()<<std::endl;
+//    int a, b;
+//    bool f1 = q.try_dequeue(a);
+//    bool f2 = q.try_dequeue(b);
+//
+//    std::cout<<q.size_approx()<<std::endl;
+//    std::cout<<f1<<" "<<f2<<std::endl;
+//    std::cout<<a<<" "<<b<<std::endl;
+
 }
 

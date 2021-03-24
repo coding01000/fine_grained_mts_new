@@ -34,7 +34,7 @@
 #include <limits>       // std::numeric_limits
 #include <type_traits>  // std::is_convertible
 
-#include <zlib.h>  // crc32_z
+#include <zlib.h>  // crc32z_z
 
 #ifdef HAVE_ARMV8_CRC32_INTRINSIC
 #include <arm_acle.h>   // __crc32x
@@ -73,7 +73,7 @@ inline std::uint32_t IntegerCrc32(std::uint32_t crc, I i) {
   unsigned char buf[sizeof(I)];
   memcpy(buf, &i, sizeof(I));
   crc = ~crc;
-  crc = crc32_z(crc, buf, sizeof(I));
+  crc = crc32(crc, buf, sizeof(I));
   return ~crc;
 }
 
@@ -114,6 +114,6 @@ inline ha_checksum my_checksum(ha_checksum crc, const unsigned char *pos,
                                size_t length) {
   static_assert(std::is_convertible<uLong, ha_checksum>::value,
                 "uLong cannot be converted to ha_checksum");
-  return crc32_z(crc, pos, length);
+  return crc32(crc, pos, length);
 }
 #endif /* not defined(MY_CEHCKSUM_INCLUDED) */

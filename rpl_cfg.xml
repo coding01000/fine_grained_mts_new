@@ -3,13 +3,41 @@
     <is_remote>false</is_remote>
     <is_single_group>false</is_single_group>
     <files>
+<!--        <file>/ssd01/mysql-bin.000035</file>-->
+<!--        <file>/ssd01/mysql-bin.000035</file>-->
         <file>/root/project/mts/mysql-bin.000035</file>
         <file>/root/project/mts/mysql-bin.000035</file>
     </files>
     <parse_pool>10</parse_pool>
-    <group_num>2</group_num>
-    <group_pool>
-        <pool>10</pool>
-        <pool>3</pool>
-    </group_pool>
+    <group>
+        <group_num>2</group_num>
+        <group_cfg>
+            <group_id>0</group_id>
+            <pool>2</pool>
+            <group_table>tpcc.WAREHOUSE</group_table>
+        </group_cfg>
+<!--        <group_cfg>-->
+<!--            <group_id>1</group_id>-->
+<!--            <pool>6</pool>-->
+<!--            <group_table>tpcc.ORDER_LINE</group_table>-->
+<!--        </group_cfg>-->
+        <group_cfg>
+            <group_id>1</group_id>
+            <pool>16</pool>
+<!--            <group_table>tpcc.WAREHOUSE</group_table>-->
+            <group_table>tpcc.HISTORY</group_table>
+            <group_table>tpcc.CUSTOMER</group_table>
+            <group_table>tpcc.DISTRICT</group_table>
+            <group_table>tpcc.ITEM</group_table>
+            <group_table>tpcc.NEW_ORDER</group_table>
+            <group_table>tpcc.OORDER</group_table>
+            <group_table>tpcc.ORDER_LINE</group_table>
+            <group_table>tpcc.STOCK</group_table>
+        </group_cfg>
+    </group>
+
+<!--    <group_pool>-->
+<!--        <pool>2</pool>-->
+<!--        <pool>16</pool>-->
+<!--    </group_pool>-->
 </rpl_cfg>

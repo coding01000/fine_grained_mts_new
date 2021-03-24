@@ -6,6 +6,7 @@
 #include "unordered_map"
 #include "master_info.h"
 #include "mutex"
+#include "table.h"
 
 namespace binary_log{
     class Event_Handler{
@@ -13,9 +14,11 @@ namespace binary_log{
         std::vector<std::string> unpack(Rows_event *ev, Event_reader &reader, TableSchema *table);
         MYSQL *mysql;
         std::unordered_map<uint64_t, TableSchema *> table_schemas;
+        std::unordered_map<std::string, TableSchema *> schemas;
         std::mutex mu;
     public:
         Event_Handler();
+        uint8_t init(std::unordered_map<std::string, rpl::Table *> *tables);
         std::vector<std::string> unpack(Write_rows_event *ev, Event_reader &reader, TableSchema *table);
         std::vector<std::string> unpack(Delete_rows_event *ev, Event_reader &reader, TableSchema *table);
         std::vector<std::string> unpack(Update_rows_event *ev, Event_reader &reader, TableSchema *table);

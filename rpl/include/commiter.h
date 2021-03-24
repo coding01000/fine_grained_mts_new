@@ -7,7 +7,7 @@
 #include "thread"
 #include "queue"
 #include "table.h"
-#include "boost/lockfree/queue.hpp"
+#include <condition_variable>
 
 namespace rpl{
 //    extern time_t get_now();
@@ -35,7 +35,7 @@ namespace rpl{
     //事务的信息，以及事务要提交的线程commiter
     class Trx_info{
     public:
-        std::list<std::shared_ptr<event_buffer> > buffers;
+        std::list<event_buffer*> buffers;
         Trx_rows *trxRows;
         Commiter *commiter;
         uint64_t xid;

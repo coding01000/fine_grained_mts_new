@@ -9,21 +9,24 @@ namespace rpl{
         }else{
             eventFetcher = new Binlog_file_event_fetcher(rplInfo.files);
         }
-        parse_pool = new boost::asio::thread_pool(rplInfo.parse_pool);
+//        parse_pool = new boost::asio::thread_pool(rplInfo.parse_pool);
+        parse_pool = new ThreadPool(rplInfo.parse_pool);
+        parse_pool->init(false);
         tables = new std::unordered_map<std::string, Table *>();
         commiter = new Commiter(tables);
         buffers = nullptr;
     }
 
     uint8_t SingleGroupReplayer::init() {
+        eventHandler.init(tables);
         commiter->commit();
-        buffers = std::make_shared<std::vector<std::shared_ptr<event_buffer>>>();
+        buffers = new event_buffer*[100];
         return 0;
     }
 
     uint8_t SingleGroupReplayer::run() {
         do{
-            std::shared_ptr<event_buffer> eb(new event_buffer());
+            auto eb = new event_buffer();
             if (eventFetcher->fetch_a_event(eb->buffer, eb->length)){
                 printf("fetch event eof");
                 break;
@@ -31,13 +34,15 @@ namespace rpl{
             parallel_process(eb);
         }while (true);
         std::cout<<trx<<std::endl;
-        parse_pool->join();
+//        parse_pool->join();
+        parse_pool->shutdown();
         commiter->shut_down();
         commiter->thread.join();
         return 0;
     }
 
-    uint8_t SingleGroupReplayer::parallel_process(std::shared_ptr<event_buffer> eb){
+    uint32_t ii=0;
+    uint8_t SingleGroupReplayer::parallel_process(event_buffer* eb){
         switch ((binary_log::Log_event_type)eb->buffer[EVENT_TYPE_OFFSET]) {
             case binary_log::FORMAT_DESCRIPTION_EVENT:{
                 binary_log::Format_description_event *fde_tmp = new binary_log::Format_description_event(4, "8.017");
@@ -50,30 +55,31 @@ namespace rpl{
                 commiter->push_commit_que(xid);
                 ++trx;
 //                trx_handle(buffers, xid);
-//                parse_pool->submit(std::bind(&SingleGroupReplayer::trx_handle, this, buffers, xid));
-                boost::asio::post(*parse_pool, std::bind(&SingleGroupReplayer::trx_handle, this, buffers, xid));
-                buffers = std::make_shared<std::vector<std::shared_ptr<event_buffer>>>();
+                parse_pool->submit(std::bind(&SingleGroupReplayer::trx_handle, this, buffers, xid, ii));
+//                boost::asio::post(*parse_pool, std::bind(&SingleGroupReplayer::trx_handle, this, buffers, xid));
+                buffers = new event_buffer*[100];
+                ii = 0;
                 break;
             }
             default:{
-                buffers->push_back(eb);
+                buffers[ii++] = eb;
                 break;
             }
         }
         return 0;
     }
 
-    uint8_t SingleGroupReplayer::trx_handle(std::shared_ptr<std::vector<std::shared_ptr<event_buffer>>> buffers,
-                                        uint64_t xid) {
+    uint8_t SingleGroupReplayer::trx_handle(event_buffer **buffers,
+                                        uint64_t xid, uint32_t k) {
         Trx_info *trxInfo = commiter->get_new_Trx_info(xid);
-        for (auto &buffer : *buffers) {
-            event_handle(buffer, trxInfo);
+        for (int j = 0; j < k; ++j) {
+           event_handle(buffers[j], trxInfo);
         }
         trxInfo->commit();
         return 0;
     }
 
-    uint8_t SingleGroupReplayer::event_handle(std::shared_ptr<event_buffer> eb, Trx_info *trxInfo) {
+    uint8_t SingleGroupReplayer::event_handle(event_buffer* eb, Trx_info *trxInfo) {
         uint8_t *buffer = eb->buffer;
         binary_log::Log_event_type type = (binary_log::Log_event_type)buffer[EVENT_TYPE_OFFSET];
         switch (type) {

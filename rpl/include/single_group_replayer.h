@@ -18,9 +18,9 @@ namespace rpl{
         uint8_t run();
 
     private:
-        uint8_t parallel_process(std::shared_ptr<event_buffer> eb);
-        uint8_t event_handle(std::shared_ptr<event_buffer> eb, Trx_info *trxInfo);
-        uint8_t trx_handle(std::shared_ptr<std::vector<std::shared_ptr<event_buffer>>> buffers, uint64_t xid);
+        uint8_t parallel_process(event_buffer* eb);
+        uint8_t event_handle(event_buffer* eb, Trx_info *trxInfo);
+        uint8_t trx_handle(event_buffer **buffers, uint64_t xid, uint32_t i);
     };
 }
 

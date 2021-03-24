@@ -2,7 +2,7 @@
 
 Master_info::Master_info() {
     tinyxml2::XMLDocument doc;
-    doc.LoadFile("/root/project/mts/master_cfg.xml");
+    doc.LoadFile("../master_cfg.xml");
     if (doc.Error()){
         std::cout<<"Read XML Fail!"<<std::endl;
     }

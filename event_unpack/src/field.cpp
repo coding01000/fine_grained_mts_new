@@ -14,7 +14,7 @@ namespace binary_log{
         if (length_ == 1) {
             unsigned_ ? value.ui = reader.read<uint8_t>() : value.i = reader.read<int8_t>();
         } else if (length_ == 2) {
-            unsigned_ ? value.ui = reader.read<uint16_t>() : value.i = reader.read<int16_t>();
+            unsigned_ ? value.ui = uint2korr(reader.ptr(2)) : value.i = (int16_t)uint2korr(reader.ptr(2));
         } else if (length_ == 3) {
             const char *ptr = reader.ptr(3);
             unsigned_ ? value.ui = uint3korr(ptr) : value.i = sint3korr(ptr);
@@ -49,7 +49,12 @@ namespace binary_log{
         std::string value;
 
         if (pack_length_ == 1) {
-            len = reader.read<uint8_t>();
+//            len = reader.read<uint8_t>();
+            const char* ptr = reader.ptr(1);
+            len = (uint8_t) *ptr;
+            if (len==117){
+                std::cout<<1<<std::endl;
+            }
         } else if (pack_length_ == 2) {
             const char* ptr = reader.ptr(2);
             len = uint2korr(ptr);
@@ -67,7 +72,11 @@ namespace binary_log{
 
 //FieldTimestamp
     std::string FieldTimestamp::valueString(Event_reader &reader) {
-        time_t i = reader.read<int32>();
+//        time_t i = reader.read<int32>();
+        const char* ptr = reader.ptr(4);
+        time_t x = uint4korr(ptr);
+        time_t step16 = x << 16 | x >> 16;
+        time_t i = ((step16 << 8) & 0xff00ff00) | ((step16 >> 8) & 0x00ff00ff);
         struct tm* t;
         struct tm tr;
         t = localtime_r(&i, &tr);

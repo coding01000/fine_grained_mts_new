@@ -76,25 +76,25 @@ namespace binary_log {
         ptr_tblnam = READER_TRY_CALL(ptr, m_tbllen + 1);
         m_tblnam = std::string(ptr_tblnam, m_tbllen);
 
-//        READER_TRY_SET(m_colcnt, net_field_length_ll);
-//        READER_TRY_CALL(alloc_and_memcpy, &m_coltype, m_colcnt, 16);
-//
-//        if (READER_CALL(available_to_read) > 0) {
-//            READER_TRY_SET(m_field_metadata_size, net_field_length_ll);
-//            if (m_field_metadata_size > (m_colcnt * 4))
-//            READER_THROW("Invalid m_field_metadata_size");
-//            unsigned int num_null_bytes = (m_colcnt + 7) / 8;
-//            READER_TRY_CALL(alloc_and_memcpy, &m_field_metadata, m_field_metadata_size,
-//                            0);
-//            READER_TRY_CALL(alloc_and_memcpy, &m_null_bits, num_null_bytes, 0);
-//        }
-//
-//        /* After null_bits field, there are some new fields for extra metadata. */
-//        m_optional_metadata_len = READER_CALL(available_to_read);
-//        if (m_optional_metadata_len) {
-//            READER_TRY_CALL(alloc_and_memcpy, &m_optional_metadata,
-//                            m_optional_metadata_len, 0);
-//        }
+        READER_TRY_SET(m_colcnt, net_field_length_ll);
+        READER_TRY_CALL(alloc_and_memcpy, &m_coltype, m_colcnt, 16);
+
+        if (READER_CALL(available_to_read) > 0) {
+            READER_TRY_SET(m_field_metadata_size, net_field_length_ll);
+            if (m_field_metadata_size > (m_colcnt * 4))
+            READER_THROW("Invalid m_field_metadata_size");
+            unsigned int num_null_bytes = (m_colcnt + 7) / 8;
+            READER_TRY_CALL(alloc_and_memcpy, &m_field_metadata, m_field_metadata_size,
+                            0);
+            READER_TRY_CALL(alloc_and_memcpy, &m_null_bits, num_null_bytes, 0);
+        }
+
+        /* After null_bits field, there are some new fields for extra metadata. */
+        m_optional_metadata_len = READER_CALL(available_to_read);
+        if (m_optional_metadata_len) {
+            READER_TRY_CALL(alloc_and_memcpy, &m_optional_metadata,
+                            m_optional_metadata_len, 0);
+        }
 
         READER_CATCH_ERROR;
 

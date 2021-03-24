@@ -19,8 +19,9 @@ namespace rpl{
         binary_log::Format_description_event *fde;
         binary_log::Event_Handler eventHandler;
         std::unordered_map<std::string, Table *> *tables;
-        boost::asio::thread_pool *parse_pool;
-        std::shared_ptr<std::vector<std::shared_ptr<event_buffer>>> buffers;
+//        boost::asio::thread_pool *parse_pool;
+        ThreadPool *parse_pool;
+        event_buffer ** buffers;
 
     public:
         virtual uint8_t init()=0;

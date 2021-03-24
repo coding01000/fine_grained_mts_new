@@ -11,7 +11,7 @@ public:
 
 private:
     MYSQL *mysql;
-    MYSQL_RPL rpl;
+//    MYSQL_RPL rpl;
     bool is_connect;
 
 };
