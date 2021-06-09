@@ -1,70 +1,50 @@
-#include <mysql/mysql.h>
-#include <iostream>
-#include <mysql/field_types.h>
-#include <mysql/mysql/client_plugin.h>
-#include <string.h>
-#include <string>
-#include "binlog_event.h"
-
+#include "replayer.h"
+#include "single_group_replayer.h"
+#include "multi_group_replayer.h"
+#include "coordinator.h"
+#include <fstream>
+#include <dirent.h>
+//#include "gperftools/"
 
 int main()
 {
-    MYSQL *mysql;
-    MYSQL_RPL rpl;
+//    auto a = new std::vector<int>(2);
+//    a->push_back(1);
+//    a.emplace_back(1);
+//    std::cout<<a->size()<<std::endl;
 
-    rpl.start_position = 4U;
-    std::string file_name;
-    
-    mysql = mysql_init(nullptr);
-
-    mysql = mysql_real_connect(mysql, "10.24.10.113", "ssh", "ssh",
-                               NULL, 3306, NULL, 0);
-    mysql_query(mysql,"SHOW MASTER STATUS;");
-    MYSQL_RES *res = mysql_store_result(mysql);
-    MYSQL_ROW row = mysql_fetch_row(res);
-    std::cout<<row[0]<<" "<<row[1]<<std::endl;
-
-    rpl.server_id =1;
-    rpl.file_name = row[0];
-    rpl.file_name_length = strlen(rpl.file_name);
-    rpl.start_position = atol(row[1]);
-
-    if (!mysql){
-        printf("Error connecting to database:%s\n",mysql_error(mysql));
-    }else{
-        printf("Connect!\n");
+//    Rpl_info rplInfo;
+//    rpl::MultiGroupReplayer a(rplInfo);
+//    a.delay();
+    Rpl_info rplInfo;
+    rpl::Replayer *replayer;
+    if (rplInfo.is_single_group){
+//        replayer = new rpl::SingleGrozpReplayer(rplInfo);
+    }else {
+        replayer = new rpl::MultiGroupReplayer(rplInfo);
     }
+    std::cout<<"------------------------------------------------------"<<std::endl;
+    replayer->init();
+    replayer->run();
 
-    if (mysql_binlog_open(mysql, &rpl))
-    {
-        fprintf(stderr, "mysql_binlog_open() failed\n");
-        fprintf(stderr, "Error %u: %s\n",
-                mysql_errno(mysql), mysql_error(mysql));
-        exit(1);
-    }
+//    Rpl_info rplInfo;
+//    mysql_mts::Coordinator coordinator;
+//    coordinator.init(rplInfo);
+//    coordinator.run();
 
-    for (;;)  /* read events until error or EOF */
-    {
-        if (mysql_binlog_fetch(mysql, &rpl))
-        {
-            fprintf(stderr, "mysql_binlog_fetch() failed\n");
-            fprintf(stderr, "Error %u: %s\n",
-                    mysql_errno(mysql), mysql_error(mysql));
-             break;
-        }
-        if (rpl.size == 0)  /* EOF */
-        {
-            fprintf(stderr, "EOF event received\n");
-            break;
-        }
-        fprintf(stderr, "Event received of size %lu.\n", rpl.size);
-        binary_log::Log_event_type type = (binary_log::Log_event_type)rpl.buffer[1 + EVENT_TYPE_OFFSET];
-        if (type == binary_log::WRITE_ROWS_EVENT){
-            printf("WRITE_ROWS_EVENTS!\n");
-        }
-    }
 
-    mysql_binlog_close(mysql, &rpl);
-    mysql_close(mysql);
+//    replayer->get();
+//    moodycamel::ConcurrentQueue<int> q;
+//    q.enqueue(1);
+//    q.enqueue(2);
+//    std::cout<<q.size_approx()<<std::endl;
+//    int a, b;
+//    bool f1 = q.try_dequeue(a);
+//    bool f2 = q.try_dequeue(b);
+//
+//    std::cout<<q.size_approx()<<std::endl;
+//    std::cout<<f1<<" "<<f2<<std::endl;
+//    std::cout<<a<<" "<<b<<std::endl;
+
 }
 

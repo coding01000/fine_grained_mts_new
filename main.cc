@@ -1,56 +1,34 @@
-#include<stdio.h>
-#include<string.h>
-#include<stdlib.h>
+/*************************************************************************
+  > File Name: main.c
+  > Author: gaopeng QQ:22389860 all right reserved
+  > Mail: gaopp_200217@163.com
+  > Created Time: Thu 02 Mar 2017 08:51:54 PM CST
+ ************************************************************************/
+
+#include<cstdio>
+#include<cstring>
+#include<cstdlib>
 #include<stdint.h>
-#include <string.h>
-#include <thread>
-#include <mutex>
-#include <functional>
-#include<stdio.h>
-#include <unordered_map>
-#include <unistd.h>
-#include "include/event_header.h"
-#include "include/safe_queue.h"
-#include "include/table.h"
-#include <iostream>
-#include <random>
-#include "include/thread_pool.h"
-//#include "include/thread_pool.h"
+#include "event_header.h"
+#include "binary_log.h"
+
+
 static MAP_TAB my_tab;
 static QUERY_EVENT my_query;
 static uint64_t GTID_GNO_;
-static uint32_t event_time = 0;
+static HEAD_P HEAD_PI;
+static HEAD_P HEAD_TRX;
+//add 2017 08 12 for lager time trx
+static HEAD_P HEAD_MT;
+//add 2017 9 27 for binlog for every table
+static HEAD_P HEAD_TAB;
 
 static int GT = 1;
-static Table table;
+
+
+//add  2018 07 02 for unkown error check!!
+
 unsigned int FORCE = 0;
-ThreadPool pool(6);
-//std::vector<ThreadPool *> pool;
-
-std::unordered_map<uint64_t, SafeQueue<Row *> * > q_map; //未执行的序列
-std::condition_variable q_cv;
-
-//还未考虑优先级的问题
-void insert_a_record(Row * row){
-    //可以把入队代码放到解析事务的代码中一起加锁，保证入队顺序的严格一致
-    auto it = q_map.find(row->primary_ley);
-    SafeQueue<Row *> * q;
-    if (it==q_map.end()){
-        q = new SafeQueue<Row *>();
-        q_map[row->primary_ley] = q;
-    }else{
-        q = it->second;
-    }
-    q->enqueue(row);
-//    sleep(2);
-    std::unique_lock<std::mutex> lock(q->mu);
-    while (q->q.front()->event_time!=row->event_time){
-        q_cv.wait(lock);
-    }
-    table.insert_row(row);
-    q->q.pop();
-    q_cv.notify_all();
-}
 
 int check_asii_num(const char* num)
 {
@@ -67,11 +45,17 @@ int check_asii_num(const char* num)
     }
     if(ret == -1 )
     {
-        printf("parameter must number type %s %d \n",ERR_POST);
+        printf(" parameter must number type %s %d \n",ERR_POST);
         return ret;
     }
 
     return ret;
+}
+
+
+void test(void)
+{
+    ;
 }
 
 int xfree(void* p)
@@ -79,11 +63,14 @@ int xfree(void* p)
     if( p == NULL)
     {
         return 0;
+        printf("NULL mem free!\n");
     }
     free(p);
     p = NULL;
     return 0;
 }
+
+
 
 //1: Big_endian
 //0: Little_endian
@@ -116,12 +103,13 @@ int check_lit(void)
 
 }
 
+
 int check_bin_format(FILE* fd)
 {
     int ret = 0;
     FILE* fds = NULL;
-    char bin_maico[4];
-    uint16_t binlog_format = 0;
+    char *bin_maico = new char[4];
+    uint16_t binlog_format_ = 1;
     char mysql_format[51];
     uint32_t event_header_size = 0;
     int32_t  *bin_maico_nu = NULL;
@@ -151,8 +139,8 @@ int check_bin_format(FILE* fd)
 
     //fseek(fds,LOG_EVENT_HEADER_LEN,SEEK_CUR);
     //add
-    fseek(fds,LOG_POS_OFFSET,SEEK_CUR);
-    if(fread(&flags,FLAGS_OFFSET-LOG_POS_OFFSET,O_MEM,fds) != O_MEM)
+    fseek(fds,17,SEEK_CUR);
+    if(fread(&flags,2,O_MEM,fds) != O_MEM)
     {
         ret = 20;
         printf("check_bin_format fread ERROR %s %d \n",ERR_POST);
@@ -160,7 +148,7 @@ int check_bin_format(FILE* fd)
     }
 
     //end
-    if(fread(&binlog_format,FORMAT_V-FLAGS_OFFSET,O_MEM,fds) != O_MEM)
+    if(fread(&binlog_format_,2,O_MEM,fds) != O_MEM)
     {
         ret = 3;
         printf("check_bin_format fread ERROR %s %d \n",ERR_POST);
@@ -191,18 +179,23 @@ int check_bin_format(FILE* fd)
         return ret;
     }
 
-    if(event_header_size != BINLOG_HEADER_LENGTH || binlog_format != BINLOG_VERSION )
+    if(event_header_size != BINLOG_HEADER_LENGTH || binlog_format_ != BINLOG_VERSION )
     {
         ret = 7;
         printf("check_bin_format:binlog_format not v4? ERROR %s %d \n",ERR_POST);
         return ret;
     }
 
+    /*
+        printf("%ld,%s,%ld\n",binlog_format,mysql_format,event_header_size);
+        printf("%d\n",*bin_maico_nu);
+        */
     fseek(fds,0,SEEK_END);
     totalsize = ftell(fds);
 
+
     printf("Check Mysql Version is:%s\n",mysql_format);
-    printf("Check Mysql binlog format ver is:V%u\n",binlog_format);
+    printf("Check Mysql binlog format ver is:V%u\n",binlog_format_);
     if(flags == (uint16_t)1)
     {
         printf("Warning:Check This binlog is not closed!\n" );
@@ -217,7 +210,8 @@ int check_bin_format(FILE* fd)
 
 }
 
-int gtid_handdle(unsigned char* gtid_buf)
+
+int gtid_an(unsigned char* gtid_buf)
 {
     int i = 0;
     int ret = 0;
@@ -229,7 +223,7 @@ int gtid_handdle(unsigned char* gtid_buf)
     if(gtid_buf == NULL)
     {
         ret = 1;
-        printf("gtid_handdle:gtid_buf == NULL ? ERROR %s %d \n",ERR_POST);
+        printf("gtid_an:gtid_buf == NULL ? ERROR %s %d \n",ERR_POST);
         return ret;
     }
     if(GT){
@@ -274,7 +268,8 @@ int gtid_handdle(unsigned char* gtid_buf)
     return ret;
 }
 
-int gtid_com_handdle(unsigned char* gtid_co_seq)
+
+int gtid_com_an(unsigned char* gtid_co_seq)
 {
     int ret = 0;
     uint64_t* data;
@@ -283,7 +278,7 @@ int gtid_com_handdle(unsigned char* gtid_co_seq)
     if(gtid_co_seq == NULL)
     {
         ret = 1;
-        printf("gtid_com_handdle:gtid_com_seq == NULL ? ERROR %s %d \n",ERR_POST);
+        printf("gtid_com_an:gtid_com_seq == NULL ? ERROR %s %d \n",ERR_POST);
         return ret;
     }
 
@@ -296,7 +291,7 @@ int gtid_com_handdle(unsigned char* gtid_co_seq)
     return ret;
 }
 
-int map_handle(FILE* fds)
+int map_an(FILE* fds)
 {
     int ret = 0 ;
     uint8_t tab_id[6];
@@ -307,7 +302,7 @@ int map_handle(FILE* fds)
     if(fds == NULL)
     {
         ret = 10;
-        printf("map_handle:fds == NULL? ERROR %s %d \n",ERR_POST);
+        printf("map_an:fds == NULL? ERROR %s %d \n",ERR_POST);
         return ret;
     }
     memset(&my_tab,0,sizeof(MAP_TAB));
@@ -315,9 +310,10 @@ int map_handle(FILE* fds)
     if(fread(tab_id,MAP_TABLE_ID,O_MEM,fds) != O_MEM)
     {
         ret = 1;
-        printf("map_handle:fread ERROR %s %d \n",ERR_POST);
+        printf("map_an:fread ERROR %s %d \n",ERR_POST);
         return ret;
     }
+
     memcpy(&my_tab.table_id,tab_id,6);
     if(GT){
         printf("TABLE_ID:%lu ",my_tab.table_id);
@@ -329,7 +325,7 @@ int map_handle(FILE* fds)
         fread(my_tab.db_name,db_len,O_MEM,fds) != O_MEM)
     {
         ret = 2;
-        printf("map_handle:fread ERROR %s %d \n",ERR_POST);
+        printf("map_an:fread ERROR %s %d \n",ERR_POST);
         return ret;
     }
     if(GT){
@@ -341,7 +337,7 @@ int map_handle(FILE* fds)
        fread(my_tab.tab_name,tab_len,O_MEM,fds) != O_MEM)
     {
         ret = 3;
-        printf("map_handle:fread ERROR %s %d \n",ERR_POST);
+        printf("map_an:fread ERROR %s %d \n",ERR_POST);
         return ret;
     }
     if(GT){
@@ -351,131 +347,8 @@ int map_handle(FILE* fds)
 
 }
 
-int delete_handle(FILE* fds)
-{
-    int ret = 0;
-    uint64_t table_id;
-    uint64_t *num;
-    uint8_t *str;
-    std::vector<void *> column_values;
-    fread(&table_id,DML_TABLE_ID,O_MEM,fds);
-    fseek(fds, 7, SEEK_CUR);
-    for(int i=0;i<table.column_width.size();i++){
-        int width = table.column_width[i];
-        switch (width) {
-            case 4:
-                num = new uint64_t();
-                fread(num, 4, O_MEM, fds);
-                column_values.push_back(num);
-                printf(" %d", (*num));
-                break;
-            case 0:
-                uint8_t len;
-                str = new uint8_t[512]();
-                memset(str,0,512);
-                fread(&len, 1, O_MEM, fds);
-                fread(str, len, O_MEM, fds);
-                column_values.push_back(str);
-                printf(" %s", str);
-                break;
-        }
-    }
-    Row *row = new Row(*(uint64_t *)column_values[0], column_values, event_time, true);
-//    table.insert_row(row);
-    pool.submit(insert_a_record, row);
-    printf("\n");
-    return ret;
-}
 
-int update_handle(FILE* fds)
-{
-    int ret = 0;
-    uint64_t table_id;
-    uint64_t *num;
-    uint8_t *str;
-    std::vector<void *> column_values;
-    fread(&table_id,DML_TABLE_ID,O_MEM,fds);
-    fseek(fds, 7, SEEK_CUR);
-    fseek(fds, 1, SEEK_CUR);
-    for(int i=0;i<table.column_width.size();i++){
-        int width = table.column_width[i];
-        switch (width) {
-            case 4:
-                fseek(fds, 4, SEEK_CUR);
-                break;
-            case 0:
-                uint8_t len;
-                fread(&len, 1, O_MEM, fds);
-                fseek(fds, len, SEEK_CUR);
-                break;
-        }
-    }
-    fseek(fds, 1, SEEK_CUR);
-    for(int i=0;i<table.column_width.size();i++){
-        int width = table.column_width[i];
-        switch (width) {
-            case 4:
-                num = new uint64_t();
-                fread(num, 4, O_MEM, fds);
-                column_values.push_back(num);
-                printf(" %d", (*num));
-                break;
-            case 0:
-                uint8_t len;
-                str = new uint8_t[512]();
-                memset(str,0,512);
-                fread(&len, 1, O_MEM, fds);
-                fread(str, len, O_MEM, fds);
-                column_values.push_back(str);
-                printf(" %s", str);
-                break;
-        }
-    }
-    Row *row = new Row(*(uint64_t *)column_values[0], column_values, event_time, 0);
-//    table.insert_row(row);
-    pool.submit(insert_a_record, row);
-    printf("\n");
-    return ret;
-}
-
-int insert_handle(FILE* fds)
-{
-    int ret = 0;
-    uint64_t table_id;
-    uint64_t *num;
-    uint8_t *str;
-    std::vector<void *> column_values;
-    fread(&table_id,DML_TABLE_ID,O_MEM,fds);
-    fseek(fds, 7, SEEK_CUR);
-    for(int i=0;i<table.column_width.size();i++){
-        int width = table.column_width[i];
-        switch (width) {
-            case 4:
-                num = new uint64_t();
-                fread(num, 4, O_MEM, fds);
-                column_values.push_back(num);
-                printf(" %d", (*num));
-                break;
-            case 0:
-                uint8_t len;
-                str = new uint8_t[512]();
-                memset(str,0,512);
-                fread(&len, 1, O_MEM, fds);
-                fread(str, len, O_MEM, fds);
-                column_values.push_back(str);
-                printf(" %s", str);
-                break;
-        }
-    }
-    Row *row = new Row(*(uint64_t *)column_values[0], column_values, event_time, 0);
-//    table.insert_row(row);
-//    insert_a_record(row);
-    pool.submit(insert_a_record, row);
-    printf("\n");
-    return ret;
-}
-
-int dml_handle(FILE* fds)
+int dml_an(FILE* fds)
 {
     int ret = 0 ;
     uint8_t tab_id[6];
@@ -485,14 +358,14 @@ int dml_handle(FILE* fds)
     if(fds == NULL)
     {
         ret = 10;
-        printf("dml_handle:fds == NULL? ERROR %s %d \n",ERR_POST);
+        printf("dml_an:fds == NULL? ERROR %s %d \n",ERR_POST);
         return ret;
     }
     memset(tab_id,0,6);
     if(fread(tab_id,DML_TABLE_ID,O_MEM,fds) != O_MEM)
     {
         ret = 1;
-        printf("dml_handle:fread ERROR %s %d \n",ERR_POST);
+        printf("dml_an:fread ERROR %s %d \n",ERR_POST);
         return ret;
     }
 
@@ -510,7 +383,7 @@ int dml_handle(FILE* fds)
         if(FORCE == 0)
         {
             ret = 2;
-            printf("dml_handle: table_id cmp ERROR %s %d \n",ERR_POST);
+            printf("dml_an: table_id cmp ERROR %s %d \n",ERR_POST);
             return ret;
         }
     }
@@ -518,7 +391,8 @@ int dml_handle(FILE* fds)
     return ret;
 }
 
-int query_handle(FILE* fds,uint32_t event_size,uint32_t event_pos)
+
+int query_an(FILE* fds,uint32_t event_size,uint32_t event_pos)
 {
     int ret = 0;
     uint8_t db_len = 0;
@@ -530,6 +404,7 @@ int query_handle(FILE* fds,uint32_t event_size,uint32_t event_pos)
     {
         ;
     }
+
     memset(&my_query,0,sizeof(QUERY_EVENT));
     memset(sta,0,35);
 
@@ -537,21 +412,23 @@ int query_handle(FILE* fds,uint32_t event_size,uint32_t event_pos)
     if(fread(&my_query.exe_time,QUERY_EXE_T-QUERY_T_ID,O_MEM,fds) != O_MEM)
     {
         ret = 1;
-        printf("query_handle:fread ERROR %s %d \n",ERR_POST);
+        printf("query_an:fread ERROR %s %d \n",ERR_POST);
         return ret;
     }
     if(fread(&db_len,QUERY_DEFAULT_DB_LEN - QUERY_EXE_T,O_MEM,fds) != O_MEM)
     {
         ret = 2;
-        printf("query_handle:fread ERROR %s %d \n",ERR_POST);
+        printf("query_an:fread ERROR %s %d \n",ERR_POST);
         return ret;
     }
+    //printf("%d\n",ftell(fds));
     fseek(fds,QUERY_ERR_CODE-QUERY_DEFAULT_DB_LEN,SEEK_CUR);//skip error_code
+    //printf("%d\n",ftell(fds));
 
     if(fread(&meta_len,QUERY_META_BLOCK_LEN-QUERY_ERR_CODE,O_MEM,fds) != O_MEM)
     {
         ret = 3;
-        printf("query_handle:fread ERROR %s %d \n",ERR_POST);
+        printf("query_an:fread ERROR %s %d \n",ERR_POST);
         return ret;
     }
 
@@ -561,7 +438,7 @@ int query_handle(FILE* fds,uint32_t event_size,uint32_t event_pos)
         if(fread(my_query.db_name,db_len,O_MEM,fds) != O_MEM)
         {
             ret = 4;
-            printf("query_handle:fread ERROR %s %d \n",ERR_POST);
+            printf("query_an:fread ERROR %s %d \n",ERR_POST);
             return ret;
         }
     }
@@ -577,14 +454,14 @@ int query_handle(FILE* fds,uint32_t event_size,uint32_t event_pos)
     if((my_query.statment = (uint8_t* )calloc(O_MEM,sta_len+5)) == NULL)
     {
         ret = 5;
-        printf("query_handle:calloc ERROR %s %d \n",ERR_POST);
+        printf("query_an:calloc ERROR %s %d \n",ERR_POST);
         return ret;
     }
 
     if(fread(my_query.statment,sta_len,O_MEM,fds) != O_MEM)
     {
         ret = 6;
-        printf("query_handle:fread ERROR %s %d \n",ERR_POST);
+        printf("query_an:fread ERROR %s %d \n",ERR_POST);
         return ret;
     }
 
@@ -595,11 +472,9 @@ int query_handle(FILE* fds,uint32_t event_size,uint32_t event_pos)
         printf("Exe_time:%u  Use_db:%s Statment(35b-trun):%s",my_query.exe_time,my_query.db_name,sta);
     }
     //add 2017 08 12
-//    EXE_T =  my_query.exe_time ;
     if(!strcmp(sta,"BEGIN") || !strcmp(sta,"B"))
         //!strcmp(sta,"B") 5.5 only
     {
-//        POS_T = (uint64_t)event_pos;
         if(GT){
             printf(" /*!Trx begin!*/ Gno:%lu\n",GTID_GNO_);
         }
@@ -616,11 +491,12 @@ int query_handle(FILE* fds,uint32_t event_size,uint32_t event_pos)
     return ret;
 }
 
-int binlog_handle(FILE* fd)
+int analyze_binlog(FILE* fd)
 {
     int ret = 0;
     FILE* fds = NULL;
     uint32_t event_pos = 0;
+    uint32_t event_time = 0;
     uint8_t  event_type = 0;
     uint32_t event_next = 4;
     uint64_t max_file_size = 0;
@@ -629,116 +505,134 @@ int binlog_handle(FILE* fd)
 
     unsigned char  gtid_buf[25];
     unsigned char  gtid_co_seq[16];
+    int n = 0;
+    uint64_t node = 0;
 
     fds = fd;
 
     if(fds == NULL)
     {
         ret = 10;
-        printf("binlog_handle:fds == NULL? ERROR %s %d \n",ERR_POST);
+        printf("analyze_binlog:fds == NULL? ERROR %s %d \n",ERR_POST);
         return ret;
     }
-
     memset(gtid_buf,0,25);
     memset(gtid_co_seq,0,16);
+    memset(&HEAD_PI,0,sizeof(HEAD_P));
+    memset(&HEAD_TRX,0,sizeof(HEAD_P));
     fseek(fds,OFFSET_0,SEEK_END);
     max_file_size = ftell(fds);
 
-    printf("------------Detail now--------------\n");
 
+    fseek(fds,BIN_LOG_HEADER_SIZE,SEEK_SET);
+    if(GT){
+        printf("------------Detail now--------------\n");
+    }
     while((max_file_size - (uint64_t)event_next) > LOG_EVENT_HEADER_LEN )
     {
-        printf("\n");
-        fseek(fds,event_next,SEEK_SET);
+        fseek(fds, event_next, SEEK_SET);
         event_pos = ftell(fds);
-
+        test();
         if (fread(&event_time,EVENT_TIMESTAMP,O_MEM,fds) != O_MEM)
         {
             ret = 2;
-            printf("binlog_handle:fread ERROR %s %d \n",ERR_POST);
+            printf("analyze_binlog:fread ERROR %s %d \n",ERR_POST);
             return ret;
         }
 
-        if(fread(&event_type,EVENT_TYPE_OFFSET - EVENT_TIMESTAMP,O_MEM,fds)!=O_MEM)
+        if(fread(&event_type,1,O_MEM,fds)!=O_MEM)
         {
             ret = 3;
-            printf("binlog_handle:fread ERROR %s %d \n",ERR_POST);
+            printf("analyze_binlog:fread ERROR %s %d \n",ERR_POST);
             return ret;
         }
-
-        fseek(fds,EVENT_LEN_OFFSET-EVENT_TYPE_OFFSET,SEEK_CUR);
-
-        if(fread(&event_next,LOG_POS_OFFSET - EVENT_LEN_OFFSET,O_MEM,fds) != O_MEM)
+        fseek(fds,8,SEEK_CUR);
+        if(fread(&event_next,4,O_MEM,fds) != O_MEM)
         {
             ret =4;
-            printf("binlog_handle:fread ERROR %s %d \n",ERR_POST);
+            printf("analyze_binlog:fread ERROR %s %d \n",ERR_POST);
             return ret;
         }
 
         event_size = event_next - event_pos;
 
+
         switch(event_type)
         {
-            case Insert_Event_TYPE:
-                printf("------>Insert Event:Pos:%u(0X%x) N_pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
-                fseek(fds,FLAGS_OFFSET-LOG_POS_OFFSET,SEEK_CUR);
-                if(insert_handle(fds) != 0)
+            case 30:
+                if(GT)
+                {
+                    printf("------>Insert Event:Pos:%u(0X%x) N_pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
+                }
+                fseek(fds,2,SEEK_CUR);
+                if(dml_an(fds) != 0)
                 {
                     ret = 8;
-                    printf("binlog_handle:dml_handle ERROR %s %d \n",ERR_POST);
+                    printf("analyze_binlog:dml_an ERROR %s %d \n",ERR_POST);
                     return ret;
                 }
+
+
+
                 break;
-            case Update_Event_TYPE:
-                printf("------>Update Event:Pos:%u(0X%x) N_pos is:%u(0X%x) time:%u event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
-                fseek(fds,FLAGS_OFFSET-LOG_POS_OFFSET,SEEK_CUR);
-                if(update_handle(fds) != 0)
+            case 31:
+                if(GT)
+                {
+                    printf("------>Update Event:Pos:%u(0X%x) N_pos is:%u(0X%x) time:%u event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
+                }
+                fseek(fds,2,SEEK_CUR);
+                if(dml_an(fds) != 0)
                 {
                     ret = 9;
-                    printf("binlog_handle:dml_handle ERROR %s %d \n",ERR_POST);
+                    printf("analyze_binlog:dml_an ERROR %s %d \n",ERR_POST);
                     return ret;
                 }
+
                 break;
-            case Delete_Event_TYPE:
-                printf("------>Delete Event:Pos:%u(0X%x) N_pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
-                fseek(fds,FLAGS_OFFSET-LOG_POS_OFFSET,SEEK_CUR);
-                if(delete_handle(fds) != 0)
+            case 32:
+                if(GT){
+                    printf("------>Delete Event:Pos:%u(0X%x) N_pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
+                }
+                fseek(fds,2,SEEK_CUR);
+                if(dml_an(fds) != 0)
                 {
                     ret = 10;
-                    printf("binlog_handle:dml_handle ERROR %s %d \n",ERR_POST);
+                    printf("analyze_binlog:dml_an ERROR %s %d \n",ERR_POST);
                     return ret;
                 }
+
                 break;
             case 19:
                 if(GT){
                     printf("---->Map Event:Pos%u(0X%x) N_pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
                 }
-                fseek(fds,FLAGS_OFFSET-LOG_POS_OFFSET,SEEK_CUR);
+                fseek(fds,2,SEEK_CUR);
 
-                if(map_handle(fds) != 0 )
+                if(map_an(fds) != 0 )
                 {
                     ret = 7;
-                    printf("binlog_handle:map_handle ERROR %s %d \n",ERR_POST);
+                    printf("analyze_binlog:map_an ERROR %s %d \n",ERR_POST);
                     return ret;
                 }
+
                 break;
             case 33:
                 if(GT){
                     printf(">Gtid Event:Pos:%u(0X%x) N_pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
                 }
-                fseek(fds,FLAGS_OFFSET-LOG_POS_OFFSET,SEEK_CUR);
+                fseek(fds,2,SEEK_CUR);
 
                 if(fread(gtid_buf,GTID_GNO,O_MEM,fds) != O_MEM)
                 {
                     ret = 6;
-                    printf("binlog_handle:fread gtid_buf ERROR %s %d \n",ERR_POST);
+                    printf("analyze_binlog:fread gtid_buf ERROR %s %d \n",ERR_POST);
                     return ret;
                 }
 
-                if( gtid_handdle(gtid_buf) != 0 )
+                if( gtid_an(gtid_buf) != 0 )
                 {
                     ret = 5;
-                    printf("binlog_handle:gtid_handdle() ERROR %s %d \n",ERR_POST);
+                    printf("analyze_binlog:gtid_an() ERROR %s %d \n",ERR_POST);
                     return ret;
                 }
 
@@ -749,14 +643,14 @@ int binlog_handle(FILE* fd)
                     if(fread(gtid_co_seq,GTID_SEQ-GTID_FLAG,O_MEM,fds) != O_MEM)
                     {
                         ret = 7;
-                        printf("binlog_handle:fread gtid_co_seq ERROR %s %d \n",ERR_POST);
+                        printf("analyze_binlog:fread gtid_co_seq ERROR %s %d \n",ERR_POST);
                         return ret;
 
                     }
-                    if(gtid_com_handdle(gtid_co_seq) != 0 )
+                    if(gtid_com_an(gtid_co_seq) != 0 )
                     {
                         ret =  8 ;
-                        printf("binlog_handle:gtid_com_handdle() ERROR %s %d \n",ERR_POST);
+                        printf("analyze_binlog:gtid_com_an() ERROR %s %d \n",ERR_POST);
                         return ret;
                     }
                 }
@@ -769,13 +663,11 @@ int binlog_handle(FILE* fd)
                     printf("-->Query Event:Pos:%u(0X%x) N_Pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
                 }
                 fseek(fds,FLAGS_OFFSET-LOG_POS_OFFSET,SEEK_CUR);
-//                QUR_T = (uint32_t)event_time; //获得query event 时间
-//                QUR_POS = (uint32_t)event_pos; //获得query event pos位置 OK
 
-                if(query_handle(fds,event_size,event_pos) != 0)
+                if(query_an(fds,event_size,event_pos) != 0)
                 {
                     ret =12;
-                    printf("binlog_handle:query_handle ERROR %s %d \n",ERR_POST);
+                    printf("analyze_binlog:query_an ERROR %s %d \n",ERR_POST);
                     return ret;
                 }
 
@@ -784,8 +676,8 @@ int binlog_handle(FILE* fd)
                 if(GT){
                     printf(">Xid Event:Pos:%u(0X%x) N_Pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
                 }
-//                QUR_X = (uint32_t)event_time; //获得xid event时间  OK
-//                QUR_POS_END = (uint64_t)event_next;//获得xid event 结束位置
+
+
                 if(GT){
                     printf("COMMIT; /*!Trx end*/ Gno:%lu\n",GTID_GNO_);
                 }
@@ -802,13 +694,13 @@ int binlog_handle(FILE* fd)
                     if(fread(gtid_co_seq,GTID_SEQ-GTID_FLAG,O_MEM,fds) != O_MEM)
                     {
                         ret = 50;
-                        printf("binlog_handle:fread gtid_co_seq ERROR %s %d \n",ERR_POST);
+                        printf("analyze_binlog:fread gtid_co_seq ERROR %s %d \n",ERR_POST);
                         return ret;
                     }
-                    if(gtid_com_handdle(gtid_co_seq) != 0 )
+                    if(gtid_com_an(gtid_co_seq) != 0 )
                     {
                         ret = 51;
-                        printf("binlog_handle:gtid_com_handdle() ERROR %s %d \n",ERR_POST);
+                        printf("analyze_binlog:gtid_com_an() ERROR %s %d \n",ERR_POST);
                         return ret;
                     }
                 }
@@ -840,11 +732,18 @@ int binlog_handle(FILE* fd)
                     printf(">Rand log Event:Pos:%u(0X%x) N_pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
                 }
                 break;
-            case 15:
+            case 15:{
+                fseek(fd, event_pos, SEEK_SET);
+                uint8_t buf[10240];
+                fread(buf,event_size, O_MEM, fd);
+                auto *fde_tmp = new binary_log::Format_description_event(4, "8.017");
+                auto fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(buf), fde_tmp);
+                fde->print_event_info(std::cout);
+            }
+
                 if(GT){
                     printf(">Format description log Event:Pos:%u(0X%x) N_pos:%u(0X%x) Time:%u Event_size:%u(bytes) \n",event_pos,event_pos,event_next,event_next,event_time,event_size);
                 }
-//                BEG_TIME = event_time;//add
                 break;
             case 29:
                 if(GT){
@@ -854,43 +753,51 @@ int binlog_handle(FILE* fd)
             default:
                 break;
         }
+
     }
+
     return ret;
 
 }
 
-int binlog_parse(const char* bin_file)
+//bin_file: fd
+//pi: how many piece split to total part
+//mi: large than mi(MB) will to total part
+//mt: larger than mt(sec) will to toal part
+int a_binlog(const char* bin_file)
 {
     int ret = 0;
     FILE* fd;
     if(bin_file == NULL)
     {
         ret = 1;
-        printf("binlog_handle:bin_file == NULL? %s %d \n",ERR_POST);
+        printf("a_binlog:bin_file == NULL? %s %d \n",ERR_POST);
         return ret;
     }
 
     if((fd=fopen(bin_file,"r"))==NULL)
     {
         ret = 2;
-        printf("binlog_handle:fopen() binlog file error %s %d \n",ERR_POST);
+        printf("a_binlog:fopen() binlog file error %s %d \n",ERR_POST);
         perror("openfile error");
         return ret;
     }
 
-    if(check_bin_format(fd) != 0)
+    if(check_bin_format(fd) != 0 )
     {
         ret = 3;
-        printf("binlog_handle:check_bin_format() binlog error %s %d \n",ERR_POST);
+        printf("a_binlog:check_bin_format() binlog error %s %d \n",ERR_POST);
         return ret;
     }
 
-    if(binlog_handle(fd) != 0 )
+    if(analyze_binlog(fd) != 0 )
     {
         ret = 4;
-        printf("binlog_handle:binlog_handle() error %s %d \n",ERR_POST);
+        printf("a_binlog:analyze_binlog() error %s %d \n",ERR_POST);
         return ret ;
     }
+
+
 
     return ret;
 
@@ -903,16 +810,15 @@ int main(int argc,char* argv[])
 //        p->init();
 //        pool.push_back(p);
 //    }
-    pool.init();
-    std::vector<std::string> column_names;
-    column_names.push_back("id");
-    column_names.push_back("name");
-    column_names.push_back("aa");
-    std::vector<uint8_t> column_width;
-    column_width.push_back(4);
-    column_width.push_back(0);
-    column_width.push_back(4);
-    table = Table("test", column_names, column_width);
+//    std::vector<std::string> column_names;
+//    column_names.push_back("id");
+//    column_names.push_back("name");
+//    column_names.push_back("aa");
+//    std::vector<uint8_t> column_width;
+//    column_width.push_back(4);
+//    column_width.push_back(0);
+//    column_width.push_back(4);
+//    table = Table("test", column_names, column_width);
 
     int ret = 0;
 
@@ -925,25 +831,16 @@ int main(int argc,char* argv[])
 
     printf("-------------Now begin--------------\n");
 
-    if(binlog_parse(*(argv+1)) != 0 )
+    if(a_binlog(*(argv+1)) != 0 )
     {
         ret = 2;
         printf("ERROR:a_binlog fun error\n");
         return ret;
     }
-    pool.shutdown();
 //    for (auto it=pool.begin();it!=pool.end();it++){
 //        (*it)->shutdown();
 //    }
-    std::unordered_map<int, Hash_Header*>::iterator it;
-    for (it=table.rows.begin();it!=table.rows.end();it++){
-        Row *row = it->second->next;
-        do{
-            printf("%d %s %d ", *(uint64_t *)(row->column_values[0]),(uint8_t *)row->column_values[1], *(uint64_t *)row->column_values[2]);
-            printf("%d \n", row->event_time);
-            row = row->next;
-        }while(row);
-    }
+
     return ret;
 }
 //std::mutex mu;
