@@ -26,66 +26,50 @@ namespace rpl{
 
     int Commiter::commit_(){
         std::unique_lock<std::mutex> lock(commit_mu);
+
         uint64_t now_xid;
         uint64_t fail = 0ULL;
         start = get_now();
         trx_cnt = 0;
+        total_trx = 0;
         time_interval = 1e6;
         time_cnt = 0;
         f = 0;
         idx = 0;
         int64_t tmp = 0;
 
-//        uint64_t ev_cnt = 0;
-//        auto thread_fre = std::thread();
-        while ((!commit_shut_down)||(!commit_que.empty())){
+//        while ((!commit_shut_down)||(!commit_que.empty())){
+        while ((!commit_shut_down)||(trx_cnt < total_trx)){
             ++cnt;
-            trx_cnt ++;
-            while ((!commit_shut_down)&&commit_que.empty()){
+            ++trx_cnt;
+//            while ((!commit_shut_down)&&commit_que.empty()){
+            while ((!commit_shut_down)&&(trx_cnt >= total_trx)){
                 commit_cv.wait(lock);
-//                ff(get_now());
             }
-            if (commit_shut_down&&commit_que.empty()){
+//            if (commit_shut_down&&commit_que.empty()){
+            if (commit_shut_down&&trx_cnt>=total_trx){
                 break;
             }
-//            ff(get_now());
-            now_xid = commit_que.front();
-//            while (trx_map.is_(now_xid)){
-//            tmp = 0;
+//            now_xid = commit_que.front();
+            now_xid = trx_cnt;
             while (!trx_map[now_xid].load()){
                 fail++;
-//                tmp++;
-//                if (tmp >= 2)
-//                    break;
-//                std::this_thread::sleep_for(std::chrono::nanoseconds(1));
                 commit_cv.wait(lock);
-//                ff(get_now(),start,time_interval,time_cnt,f,freq);
             }
-            commit_que.pop();
-//            if (tmp >= 2)
-//                continue;
-//            ff(get_now(),start,time_interval,time_cnt,f,freq);
-            if (commit_shut_down&&commit_que.empty()){
+//            commit_que.pop();
+            if (commit_shut_down&&trx_cnt>=total_trx){
                 break;
             }
-//            Trx_rows *trxRows = trx_map.get(now_xid);
+
             Trx_rows *trxRows = trx_map[now_xid];
             for (auto it = trxRows->rows.begin(); it != trxRows->rows.end();it++)
             {
-//                auto table = tables->find((*it)->full_name)->second;
-//                std::cout<<(*it)->full_name<<std::endl;
-//                f++;
                 (*it)->table->insert_row(*it);
                 commit_time = std::max(commit_time, (*it)->event_time);
             }
-//            ff(1);
-//            uint64_t tmp = get_now();
-
-//            trx_map.erase(now_xid);
-//            if(cnt % 100 == 0 && name == "commiter1")[539219, 576459, 2 ]
-//                std::cout << name<< " cnt: " << cnt << " "<< trx_map._map.size() << std::endl;
+            trx_times[trx_cnt].finish_time = get_now();
         }
-        commit_time *= 2;
+//        commit_time *= 2;
         used_time = get_now() - start;
         std::cout<<name<< " used time: "<< used_time <<" ";
         std::cout<<" freq: [";
@@ -94,6 +78,16 @@ namespace rpl{
         }
         std::cout<<f<<" ]"<<std::endl;
         std::cout << "fail: " << fail << std::endl;
+        std::ofstream file1;
+        file1.open("/root/project/mts_cp/"+name);
+        int64_t t1=0, t2=0, t3=0;
+        for (int i = 1; i < trx_cnt; ++i) {
+            t1 += trx_times[i].dis_time > trx_times[i].start_time ? trx_times[i].dis_time - trx_times[i].start_time : 10;
+            t2 += trx_times[i].parse_time > trx_times[i].dis_time ? trx_times[i].parse_time - trx_times[i].dis_time : 10;
+            t3 += trx_times[i].finish_time > trx_times[i].parse_time ? trx_times[i].finish_time - trx_times[i].parse_time : 10;
+//            file1 << trx_times[i].parse_time - trx_times[i].start_time << " " << trx_times[i].finish_time - trx_times[i].start_time << std::endl;
+        }
+        std::cout << name << "-- 分组：" << t1 / trx_cnt << "  parse time: " << t2 / trx_cnt << "  finish time: " << t3 / trx_cnt << std::endl;
         return 0;
     }
 

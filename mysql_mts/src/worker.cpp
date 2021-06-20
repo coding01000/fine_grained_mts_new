@@ -21,24 +21,22 @@ namespace mysql_mts{
         auto &eventHandler = coordinator->eventHandler;
         auto &fde = coordinator->fde;
         auto &tables = coordinator->tables;
-        while (!stop||jobs.empty()){
+        while (!stop||jobs.size_approx() > 0){
 //        如果为空 worker进行等待
-            while (jobs.empty()&&!stop){
+            while (jobs.size_approx()==0&&!stop){
                 usleep(1);
 //                cv.wait(lock);
             }
-            if (jobs.empty()){
+//            if (jobs.empty()){
+            if (jobs.size_approx() == 0){
                 break;
             }
 //            获取job队列中的buffer
-            auto eb = jobs.front();
+//            auto eb = jobs.front();
+            rpl::event_buffer *eb;
+            jobs.try_dequeue(eb);
             uint8_t * buffer = eb->buffer;
-            jobs.pop();
-//            if ((binary_log::Log_event_type)eb->buffer[EVENT_TYPE_OFFSET]==binary_log::XID_EVENT){
-//                std::cout<<"-XID_EVENT"<<std::endl;
-//            }else if ((binary_log::Log_event_type)eb->buffer[EVENT_TYPE_OFFSET]==binary_log::WRITE_ROWS_EVENT){
-//                std::cout<<"-WRITE_ROWS_EVENT"<<std::endl;
-//            }
+//            jobs.pop();
 //            进行解析
             switch ((binary_log::Log_event_type)buffer[EVENT_TYPE_OFFSET]){
                 case binary_log::TABLE_MAP_EVENT:{
@@ -101,15 +99,18 @@ namespace mysql_mts{
                     delete[] buf;
                     break;
                 }
+                case binary_log::ROTATE_EVENT:
                 case binary_log::XID_EVENT:{
 //                  如果job队列是空的了，就将work的id加入到空闲队列
-                    while (!jobs.empty())
-                        jobs.pop();
-                    if (jobs.empty()){
-                        coordinator->add_free_work(id);
-                        in_use = false;
-                        coordinator->cv.notify_all();
-                    }
+//                    while (!jobs.empty())
+                    while (jobs.size_approx() > 0)
+                        jobs.try_dequeue(eb);
+//                    if (jobs.empty()){
+//                    if (jobs.size_approx() == 0){
+                    coordinator->add_free_work(id);
+                    in_use = false;
+                    coordinator->cv.notify_all();
+//                    }
                     break;
                 }
                 default:
@@ -119,7 +120,8 @@ namespace mysql_mts{
     }//run
 
     uint8_t Worker::add_job(rpl::event_buffer *eb) {
-        jobs.push(eb);
+        jobs.enqueue(eb);
+//        jobs.push(eb);
         return 0;
     }
 

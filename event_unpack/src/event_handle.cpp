@@ -95,7 +95,7 @@ namespace binary_log{
     }
     int cnt = 0;
     TableSchema* Event_Handler::unpack(Table_map_event *ev) {
-        uint64_t table_id = table_id = ev->get_table_id();
+        uint64_t table_id  = ev->get_table_id();
         size_t hash_value = std::hash<uint64_t>()(table_id) % hash_range_;
         {
 //            std::unique_lock<std::shared_timed_mutex> lock(schemas_mu);

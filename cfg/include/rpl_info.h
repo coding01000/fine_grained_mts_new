@@ -11,6 +11,7 @@ class Rpl_info{
 public:
     bool is_remote;
     bool is_single_group;
+    bool is_mysql_mode;
     std::vector<std::string> files;
     uint32_t parse_pool;
     uint32_t group_num;

@@ -26,8 +26,8 @@ namespace rpl{
     class MultiGroupReplayer: public Replayer{
     private:
         std::vector<Commiter *> commiters;
-//        std::vector<boost::asio::thread_pool *> dispenses_pool;
-        std::vector<ThreadPool *> dispenses_pool;
+        std::vector<boost::asio::thread_pool *> dispenses_pool;
+//        std::vector<ThreadPool *> dispenses_pool;
         uint32_t n;
         uint64_t trx =0;
         Rpl_info rplInfo;
@@ -43,7 +43,7 @@ namespace rpl{
         uint8_t delay_init();
         uint8_t delay();
 
-        std::vector<std::thread> *parsePool;
+        boost::asio::thread_pool *parse_pool;
         std::atomic<int64_t> parse_top, parse_now;
         bool parse_stop;
         struct parse_struct{

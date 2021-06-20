@@ -8,6 +8,7 @@ Rpl_info::Rpl_info() {
     }
     tinyxml2::XMLElement *info = doc.RootElement();  // info为根节点
     is_remote = info->FirstChildElement("is_remote")->BoolText();
+    is_mysql_mode = info->FirstChildElement("mysql_mode")->BoolText();
     is_single_group = info->FirstChildElement("is_single_group")->BoolText();
     parse_pool = info->FirstChildElement("parse_pool")->IntText();
     interval = info->FirstChildElement("interval")->IntText();

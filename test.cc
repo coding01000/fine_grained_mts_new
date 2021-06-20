@@ -17,20 +17,24 @@ int main()
 //    rpl::MultiGroupReplayer a(rplInfo);
 //    a.delay();
     Rpl_info rplInfo;
-    rpl::Replayer *replayer;
-    if (rplInfo.is_single_group){
-//        replayer = new rpl::SingleGrozpReplayer(rplInfo);
+    if (rplInfo.is_mysql_mode){
+        mysql_mts::Coordinator coordinator;
+        coordinator.init(rplInfo);
+        coordinator.run();
     }else {
-        replayer = new rpl::MultiGroupReplayer(rplInfo);
-    }
-    std::cout<<"------------------------------------------------------"<<std::endl;
-    replayer->init();
-    replayer->run();
+        rpl::Replayer *replayer;
+        if (rplInfo.is_single_group){
+//        replayer = new rpl::SingleGrozpReplayer(rplInfo);
+        }else {
+            replayer = new rpl::MultiGroupReplayer(rplInfo);
+        }
+        std::cout<<"------------------------------------------------------"<<std::endl;
+        replayer->init();
+        replayer->run();
+    };
 
-//    Rpl_info rplInfo;
-//    mysql_mts::Coordinator coordinator;
-//    coordinator.init(rplInfo);
-//    coordinator.run();
+
+
 
 
 //    replayer->get();

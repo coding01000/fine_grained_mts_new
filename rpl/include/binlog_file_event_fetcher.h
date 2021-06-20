@@ -23,6 +23,7 @@ public:
     int fetch_a_event(uint8_t* &buf, int &length);
     int read_all_to_buffer();
     RingBuffer<uint8_t> *ringBuffer;
+    void init();
 
 private:
     FILE *fd;

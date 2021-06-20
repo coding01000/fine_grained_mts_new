@@ -30,6 +30,10 @@ void ThreadWorker::operator()() {
 //            lock.unlock();
 //        }
 //        if (dequeued) {
+//            bool flag = true;
+//            while(!m_pool->m_queue[m_id].try_dequeue(func)){
+//                std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+//            }
             m_pool->m_queue[m_id].wait_dequeue(func);
             func();
 //            (*func)();

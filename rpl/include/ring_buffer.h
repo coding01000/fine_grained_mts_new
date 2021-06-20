@@ -39,6 +39,11 @@ public:
         m_empty = true;
     }
 
+    void init(){
+        m_readPos = 0;
+    }
+
+
     uint64_t capacity(){
         if (m_full){
             return 0;

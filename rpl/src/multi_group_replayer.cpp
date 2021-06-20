@@ -1,6 +1,7 @@
 #include <sstream>
 #include "multi_group_replayer.h"
 #include "string.h"
+#include <fstream>
 
 #include <atomic>
 
@@ -18,15 +19,10 @@ namespace rpl{
         }else{
             eventFetcher = new Binlog_file_event_fetcher(rplInfo.files);
         }
-        parse_pool = new ThreadPool(rplInfo.parse_pool);
-        parse_pool->init(false);
-//        parsePool = new std::vector<std::thread>();
-//        for (int i = 0; i < rplInfo.parse_pool; ++i) {
-//            parsePool->push_back(std::thread(&MultiGroupReplayer::parse_thread, this));
-//        }
-//        parse_stop = false;
-//        parse_top = 0;
-//        parse_now = 0;
+        parse_pool = new boost::asio::thread_pool(rplinfo.parse_pool);
+//        parse_pool = new ThreadPool(rplInfo.parse_pool);
+//        bool bind = true;
+//        parse_pool->init(bind);
 
         std::cout << "parse pool(#): " << rplinfo.parse_pool << std::endl;
         for(int i = 0; i < n; i++){
@@ -35,11 +31,13 @@ namespace rpl{
         tables = new std::unordered_map<std::string, Table *>();
         buffers = nullptr;
         commiters = std::vector<Commiter *>(n);
-        dispenses_pool = std::vector<ThreadPool *>(n);
+//        dispenses_pool = std::vector<ThreadPool *>(n);
+        dispenses_pool = std::vector<boost::asio::thread_pool *>(n);
         for (int i = 0; i < n; ++i) {
             commiters[i] = new Commiter(tables);
-            dispenses_pool[i] = new ThreadPool(rplInfo.group_pool[i]);
-            dispenses_pool[i]->init(false);
+            dispenses_pool[i] = new boost::asio::thread_pool(rplInfo.group_pool[i]);
+//            dispenses_pool[i] = new ThreadPool(rplInfo.group_pool[i]);
+//            dispenses_pool[i]->init(bind);
         }
 //        pipe_fd = open("/root/mts/QueryBot5000/pipe_test", O_WRONLY);
     }
@@ -48,9 +46,32 @@ namespace rpl{
         eventHandler.init(tables, rplInfo.all_tables);
         delay_init();
         max_xid = 0;
+        do{
+            auto eb = new event_buffer();
+            if (eventFetcher->fetch_a_event(eb->buffer, eb->length)){
+                break;
+            }
+            switch ((binary_log::Log_event_type)eb->buffer[EVENT_TYPE_OFFSET]){
+                case binary_log::FORMAT_DESCRIPTION_EVENT:{
+                    binary_log::Format_description_event *fde_tmp = new binary_log::Format_description_event(4, "8.017");
+                    fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(eb->buffer), fde_tmp);
+                    break;
+                }
+                case binary_log::TABLE_MAP_EVENT:{
+                    auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(eb->buffer), fde);
+                    eventHandler.unpack(ev);
+                    delete ev;
+                    break;
+                }
+                default:
+                    break;
+            }
+        }while (true);
+        eventFetcher->init();
         return 0;
     }
     std::atomic<uint64_t> trx_sum[10];
+    std::atomic<uint64_t> trx_size[10];
     bool stop = false;
     time_t end_time;
     uint8_t MultiGroupReplayer::run() {
@@ -70,18 +91,23 @@ namespace rpl{
             parallel_process(eb);
         }while (true);
         delete eventFetcher;
-        parse_pool->shutdown();
+//        stop = true;
+//        parse_pool->shutdown();
+        parse_pool->join();
         std::cout<<"total number of txns: " << trx << std::endl;
         std::cout << "total parse used time: "<< (get_now()-start) << " us" << std::endl;
         for (int i = 0; i < n; ++i) {
             std::cout<<" log events(#) in group "<< i <<" : "<<trx_sum[i]<<std::endl;
         }
+        for (int i = 0; i < n; ++i) {
+            std::cout<<" log size(#) in group "<< i <<" : "<<trx_size[i] / 1e8<<std::endl;
+        }
         for (const auto &commiter : commiters) {
-            commiter->total_trx = trx;
             commiter->shut_down();
         }
         for (const auto &pool : dispenses_pool) {
-            pool->shutdown();
+            pool->join();
+//            pool->shutdown();
         }
         for (int i=0;i<n;i++) {
             commiters[i]->thread.join();
@@ -94,6 +120,7 @@ namespace rpl{
     }
 
     uint32_t i = 0;
+    double delay_time[3000];
     uint8_t MultiGroupReplayer::parallel_process(event_buffer* eb){
         switch ((binary_log::Log_event_type)eb->buffer[EVENT_TYPE_OFFSET]) {
 //            case binary_log::ANONYMOUS_GTID_LOG_EVENT:{
@@ -107,20 +134,19 @@ namespace rpl{
 //                auto event = new binary_log::Xid_event(reinterpret_cast<const char *>(eb->buffer), fde);
 //                time_t start3 = get_now();
                 for (auto &commiter : commiters) {
-                    commiter->push_commit_que(trx);
+                    commiter->total_trx = trx;
+//                    commiter->push_commit_que(trx);
                 }
-//                parse_top.fetch_add(1);
-                parse_pool->submit(std::bind(&MultiGroupReplayer::trx_dispenses, this, buffers, trx, i));
+                boost::asio::post(*parse_pool, std::bind(&MultiGroupReplayer::trx_dispenses, this, buffers, trx, i));
+//                parse_pool->submit(std::bind(&MultiGroupReplayer::trx_dispenses, this, buffers, trx, i));
                 buffers = new event_buffer*[buffer_size];
 //                time_post += get_now() - start3;
                 i = 0;
                 break;
             }
             case binary_log::FORMAT_DESCRIPTION_EVENT:{
-//                time_t start6 = get_now();
                 binary_log::Format_description_event *fde_tmp = new binary_log::Format_description_event(4, "8.017");
                 fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(eb->buffer), fde_tmp);
-//                time_format += get_now() - start6;
                 break;
             }
             default:{
@@ -128,7 +154,6 @@ namespace rpl{
                 break;
             }
         }
-//        time_process += (get_now() - start);
         return 0;
     }
 
@@ -138,16 +163,24 @@ namespace rpl{
         for (int i = 0; i < n; ++i) {
             trxinfos.push_back(commiters[i]->get_new_Trx_info(xid));
         }
+        time_t start1 = get_now();
         for (int i = 0; i < k; ++i) {
             event_dispenses(buffer_arr[i], trxinfos);
         }
         for (int j = 0; j < n;  ++j) {
+            trxinfos[j]->commiter->trx_times[xid].start_time = start1;
             if (trxinfos[j]->buffers.size() > 0){
-                trx_sum[j]+=trxinfos[j]->buffers.size();
+                trx_sum[j] += trxinfos[j]->buffers.size();
+                for (auto i: trxinfos[j]->buffers){
+                    trx_size[j] += i->length;
+                }
             }
         }
+        time_t dis_time = get_now();
         for (int i = 0; i < n; ++i) {
-            dispenses_pool[i]->submit(std::bind(&MultiGroupReplayer::event_handle, this, trxinfos[i]));
+            trxinfos[i]->commiter->trx_times[xid].dis_time = dis_time;
+//            dispenses_pool[i]->submit(std::bind(&MultiGroupReplayer::event_handle, this, trxinfos[i]));
+            boost::asio::post(*dispenses_pool[i],std::bind(&MultiGroupReplayer::event_handle, this, trxinfos[i]));
         }
         delete [] buffer_arr;
         return 0;
@@ -159,22 +192,22 @@ namespace rpl{
         uint8_t *buffer = eb->buffer;
         binary_log::Log_event_type type = (binary_log::Log_event_type)buffer[EVENT_TYPE_OFFSET];
         switch (type) {
-            case binary_log::TABLE_MAP_EVENT:{
-                auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(buffer), fde);
-//                std::string full_table_name = ev->get_db_name()+'.'+ev->get_table_name();
-//                auto it = tables->find(full_table_name);
-//                auto *table_schema = eventHandler.unpack(ev);
-                eventHandler.unpack(ev);
-                //如果没有这个表则创建这个表，并构建schema
-//                if (it == tables->end()){
-//                    Table *table = new Table(full_table_name);
-//                    table->schema = new binary_log::TableSchema(*table_schema);
-//                    table->_pk = table_schema->getPrikey();
-//                    (*tables)[full_table_name] = table;
-//                }
-                delete ev;
-                break;
-            }
+//            case binary_log::TABLE_MAP_EVENT:{
+//                auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(buffer), fde);
+////                std::string full_table_name = ev->get_db_name()+'.'+ev->get_table_name();
+////                auto it = tables->find(full_table_name);
+////                auto *table_schema = eventHandler.unpack(ev);
+//                eventHandler.unpack(ev);
+//                //如果没有这个表则创建这个表，并构建schema
+////                if (it == tables->end()){
+////                    Table *table = new Table(full_table_name);
+////                    table->schema = new binary_log::TableSchema(*table_schema);
+////                    table->_pk = table_schema->getPrikey();
+////                    (*tables)[full_table_name] = table;
+////                }
+//                delete ev;
+//                break;
+//            }
             case binary_log::WRITE_ROWS_EVENT:
             case binary_log::DELETE_ROWS_EVENT:
             case binary_log::UPDATE_ROWS_EVENT:{
@@ -203,6 +236,7 @@ namespace rpl{
 
     uint8_t MultiGroupReplayer::event_handle(Trx_info *trxinfo) {
 //        trxinfo->trxRows = new Trx_rows(trxinfo->xid);
+//        trxinfo->commiter->trx_times[trxinfo->xid].start_time = get_now();
         for (auto &eb : trxinfo->buffers) {
             uint8_t *buffer = eb->buffer;
             binary_log::Log_event_type type = (binary_log::Log_event_type)buffer[EVENT_TYPE_OFFSET];
@@ -263,6 +297,7 @@ namespace rpl{
             }
 //            delete[] eb->buffer;
         }
+        trxinfo->commiter->trx_times[trxinfo->xid].parse_time = get_now();
         trxinfo->commit();
         delete trxinfo;
         return 0;
@@ -382,70 +417,84 @@ namespace rpl{
 //    }
 
     uint8_t MultiGroupReplayer::delay() {
-        uint64_t total_time=0, total_query = 0, cnt = 0, last_cnt[rplInfo.group_num];
+        uint64_t total_time=0, total_query = 0, cnt = 0, cnt2 = 0, last_cnt[rplInfo.group_num];
         memset(last_cnt, 0, sizeof(uint64_t)*rplInfo.group_num);
         uint64_t stop_num = 5000;
         uint64_t interval = rplInfo.interval;
         auto &freq = rplInfo.query_fre;
-//        uint64_t qzcnt, 0, sizeof(freq));
         std::vector<int> query_list;
         time_t time1, time2;
         int fq = freq[0].ferq;
         int freq_ = 0;
+        std::ofstream file;
+        file.open("/root/project/mts_cp/log");
         for (const auto &f : freq) {
             freq_ += f.ferq;
             fq = std::__gcd(fq,f.ferq);
         }
+//        uint64_t interval = rplInfo.interval / freq_;
         for (int i = 0; i < freq.size(); i++) {
             int f = freq[i].ferq / fq;
             for (int j = 0; j < f; ++j) {
                 query_list.push_back(i);
             }
         }
+        memset(delay_time, 0, sizeof(delay_time));
         time_t start = get_now();
+//        time_t st = get_now();
         while (true){
             for (const auto &query : query_list) {
+                time_t s = get_now();
                 for (auto group : freq[query].query_group){
-//                    while ((commiters[group]->trx_cnt / interval) <= total_query){
+                    uint64_t t = commiters[group]->trx_cnt;
+//                    while (commiters[group]->trx_cnt - t <= 50000){
+                    while ((commiters[group]->trx_cnt / interval) <= total_query){
 //                    while (commiters[group]->trx_cnt - last_cnt[group] <= interval){
-//                        if (stop || total_query >= stop_num){
-//                            std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
-//                            std::cout << cnt << std::endl;
-////                            return 0;
+                        if (stop || total_query >= stop_num){
+                            std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
+                            std::cout << cnt << "----" << cnt2 << std::endl;
+                            for (int i = 1; i <= total_query; i++)
+                                file << delay_time[i] / 1e6 << std::endl;
+                            return 0;
 //                            exit(0);
-//                        }
-//                    }
+                        }
+                        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+//                        if (get_now() - start - (total_query * 1e6 / freq_) > 450000)
+//                            break;
+                    }
                 }
-                time_t now = get_now();
-                max_xid = (150000)*((now - start)/1e6);
-//                std::cout << "-------xid: " << max_xid.load() << std::endl;
-//                for (int j = 0; j < rplInfo.group_num; ++j) {
-//                    std::cout << "group " << j << " :  " << commiters[j]->trx_cnt << std::endl;
-//                }
                 total_query++;
+//                delay_time[total_query] = get_now() - s + 3000;
+//                total_time += delay_time[total_query];
                 time1 = get_now() - start;
                 time2 = (total_query * 1e6 / freq_);
-
+                time_t time3 = ((total_query+15) * 1e6 / freq_);
+                if (time1 >= time2 && time1 <= time3)
+                    cnt++;
                 if (time1 >= time2)
-                    total_time += time1 - time2;
+                    delay_time[total_query] = time1 - time2;
                 else
                 {
                     while (time2 >= time1){
                         time1 = get_now() - start + 1e4;
+                        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
                     }
-                    cnt++;
+                    cnt2++;
+//                    cnt++;
                 }
-                total_time += 3000;
-                for (int j = 0; j < rplInfo.group_num; ++j) {
-                    last_cnt[j] = commiters[j]->trx_cnt;
-                }
-                std::this_thread::sleep_for(std::chrono::microseconds (1000000));
-                if (stop || total_query >= stop_num){
-                        std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
-                        std::cout << cnt << std::endl;
-//                        return 0;
-                        exit(0);
-                }
+                delay_time[total_query] += 3000;
+                total_time += delay_time[total_query];
+////                for (int j = 0; j < rplInfo.group_num; ++j) {
+////                    last_cnt[j] = commiters[j]->trx_cnt;
+////                }
+////                std::this_thread::sleep_for(std::chrono::microseconds (1000000));
+//                if (stop || total_query >= stop_num){
+//                    std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
+//                    std::cout << cnt << "----" << cnt2 << std::endl;
+//                    for (int i = 1; i <= total_query; i++)
+//                        file << delay_time[i] / 1e6 << std::endl;
+//                    exit(0);
+//                }
             } // for (const auto &query : query_list)
         } // where true
     }

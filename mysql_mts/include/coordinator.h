@@ -39,6 +39,7 @@ namespace mysql_mts{
         uint8_t add_free_work(int id);
         Coordinator(){};
         uint8_t exec(rpl::event_buffer *eb);
+        void delay();
     };
 
 }

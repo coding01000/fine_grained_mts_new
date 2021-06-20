@@ -14,6 +14,7 @@
 #include "thread"
 #include "functional"
 #include "commiter.h"
+#include "blockingconcurrentqueue.h"
 //#include "coordinator.h"
 //#include "lo"
 
@@ -28,7 +29,9 @@ namespace mysql_mts{
         uint32_t id;
     public:
         bool in_use;
-        std::queue<rpl::event_buffer *> jobs;
+//        std::queue<rpl::event_buffer *> jobs;
+        moodycamel::BlockingConcurrentQueue<rpl::event_buffer *> jobs;
+//        std::atomic<int> job_top;
         std::thread thread;
         std::mutex mu;
         std::condition_variable cv;

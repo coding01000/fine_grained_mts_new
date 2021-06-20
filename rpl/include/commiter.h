@@ -9,6 +9,7 @@
 #include "table.h"
 #include <condition_variable>
 #include "atomic"
+#include <fstream>
 
 namespace rpl{
 //    extern time_t get_now();
@@ -17,6 +18,7 @@ namespace rpl{
     //event buffer包装
     class event_buffer{
     public:
+
         uint8_t *buffer;
         int length;
         event_buffer();
@@ -48,6 +50,12 @@ namespace rpl{
 
     class Commiter{
     public:
+        struct Trx_time{
+            time_t start_time;
+            time_t dis_time;
+            time_t parse_time;
+            time_t finish_time;
+        }trx_times[1500000];
 //        SafeMap<uint64_t, Trx_rows*> trx_map;
         std::atomic<Trx_rows *> trx_map[4000000];
         std::queue<uint64_t> commit_que;
@@ -61,7 +69,7 @@ namespace rpl{
         uint64_t start;
         uint64_t cnt;
         std::string name;
-        std::atomic<int64_t> trx_cnt;
+        uint64_t trx_cnt;
         static uint64_t no;
         time_t commit_time;
         time_t used_time;

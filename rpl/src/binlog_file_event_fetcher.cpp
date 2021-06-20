@@ -61,6 +61,12 @@ time_t get_now(){
     return tv.tv_sec * 1000000 + tv.tv_usec;
 }
 
+void Binlog_file_event_fetcher::init() {
+    event_pos = 0;
+    event_next = BIN_LOG_HEADER_SIZE;
+    ringBuffer->init();
+}
+
 int Binlog_file_event_fetcher::fetch_a_event(uint8_t *&buf, int &length) {
     if (ringBuffer->size() <= LOG_EVENT_HEADER_LEN){
         return 1;
