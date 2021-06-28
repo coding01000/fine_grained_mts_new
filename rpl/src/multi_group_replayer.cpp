@@ -81,7 +81,7 @@ namespace rpl{
             commiter->commit();
         }
         uint64_t en = 0;
-        auto a = std::thread(&MultiGroupReplayer::delay, this);
+//        auto a = std::thread(&MultiGroupReplayer::delay, this);
         do{
             en++;
             auto eb = new event_buffer();
@@ -115,7 +115,7 @@ namespace rpl{
         }
         end_time = get_now();
         stop = true;
-        a.join();
+//        a.join();
         return 0;
     }
 

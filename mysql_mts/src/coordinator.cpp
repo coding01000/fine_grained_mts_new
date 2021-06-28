@@ -17,7 +17,7 @@ namespace mysql_mts{
     uint64_t trx;
 
     uint8_t Coordinator::init(Rpl_info &rif) {
-        n = 34;
+        n = 28;
         trx = 0;
         stop = false;
         memset(delay_time, 0, sizeof(delay_time));
@@ -48,7 +48,7 @@ namespace mysql_mts{
         Worker *worker = nullptr;
         uint64_t last_committed, sequence_number;
         time_t start = get_now();
-        std::thread a = std::thread(&Coordinator::delay, this);
+//        std::thread a = std::thread(&Coordinator::delay, this);
 //        uint64_t trx = 0;
         do{
             auto eb = new rpl::event_buffer();
@@ -109,10 +109,10 @@ namespace mysql_mts{
             workers[i]->thread.join();
         }
         time_t end_time = get_now();
-        std::cout << (end_time - start) / 1e6 << std::endl;
+        std::cout << (end_time - start)  << std::endl;
         std::cout << trx << std::endl;
         stop = true;
-        a.join();
+//        a.join();
     }
 
     void Coordinator::delay() {
