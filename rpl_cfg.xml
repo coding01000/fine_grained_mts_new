@@ -15,24 +15,27 @@
 <!--            <freq>50</freq>-->
 <!--            <query_tables>tpcc.bmsql_customer</query_tables>-->
 <!--        </query_ferq>-->
-<!--        <query_ferq>-->
-<!--            <freq>100</freq>-->
-<!--            <query_tables>tpcc.bmsql_customer</query_tables>-->
-<!--        </query_ferq>-->
+        <query_ferq>
+            <freq>700</freq>
+            <query_tables>tpcc.bmsql_district</query_tables>
+            <query_tables>tpcc.bmsql_stock</query_tables>
+            <query_tables>tpcc.bmsql_order_line</query_tables>
+            <query_tables>tpcc.bmsql_oorder</query_tables>
+        </query_ferq>
     </query_freqs>
     <interval>500</interval>
     <files>
-        <file>/root/project/mts/data/mysql-bin.000209</file>
-        <file>/root/project/mts/data/mysql-bin.000210</file>
-        <file>/root/project/mts/data/mysql-bin.000211</file>
+        <file>/root/project/mts/mysql-bin.000209</file>
+        <file>/root/project/mts/mysql-bin.000210</file>
+        <file>/root/project/mts/mysql-bin.000211</file>
 <!--        <file>/root/project/mts/data/mysql-bin.000211</file>-->
-<!--        <file>/root/project/mts/data/mysql-bin.000196</file>-->
+<!--        <file>/root/data/mysql-bin.000247</file>-->
 <!--        <file>/root/project/mts/data/mysql-bin.000197</file>-->
 <!--        <file>/root/project/mts/data/mysql-bin.000198</file>-->
     </files>
     <parse_pool>8</parse_pool>
     <group>
-        <group_num>2</group_num>
+        <group_num>1</group_num>
 <!--            <group_cfg>-->
 <!--                <pool>5</pool>-->
 <!--&lt;!&ndash;                <group_table>chbenchmark.OORDER</group_table>&ndash;&gt;-->
@@ -61,6 +64,43 @@
 <!--        不分组-->
 
 <!--        <group_cfg>-->
+<!--            <pool>10</pool>-->
+<!--            <group_table>tpcc.bmsql_customer</group_table>-->
+<!--        </group_cfg>-->
+<!--        <group_cfg>-->
+<!--            <pool>1</pool>-->
+<!--            <group_table>tpcc.bmsql_oorder</group_table>-->
+<!--        </group_cfg>-->
+<!--        <group_cfg>-->
+<!--            <pool>1</pool>-->
+<!--            <group_table>tpcc.bmsql_district</group_table>-->
+<!--        </group_cfg>-->
+<!--        <group_cfg>-->
+<!--            <pool>1</pool>-->
+<!--            <group_table>tpcc.bmsql_stock</group_table>-->
+<!--        </group_cfg>-->
+<!--        <group_cfg>-->
+<!--            <pool>1</pool>-->
+<!--            <group_table>tpcc.bmsql_order_line</group_table>-->
+<!--        </group_cfg>-->
+<!--        <group_cfg>-->
+<!--            <pool>1</pool>-->
+<!--            <group_table>tpcc.bmsql_warehouse</group_table>-->
+<!--        </group_cfg>-->
+<!--        <group_cfg>-->
+<!--            <pool>1</pool>-->
+<!--            <group_table>tpcc.bmsql_item</group_table>-->
+<!--        </group_cfg>-->
+<!--        <group_cfg>-->
+<!--            <pool>1</pool>-->
+<!--            <group_table>tpcc.bmsql_new_order</group_table>-->
+<!--        </group_cfg>-->
+<!--        <group_cfg>-->
+<!--            <pool>1</pool>-->
+<!--            <group_table>tpcc.bmsql_history</group_table>-->
+<!--        </group_cfg>-->
+
+<!--        <group_cfg>-->
 <!--            <pool>20</pool>-->
 <!--            <group_table>tpcc.bmsql_oorder</group_table>-->
 <!--            <group_table>tpcc.bmsql_customer</group_table>-->
@@ -73,20 +113,32 @@
 <!--            <group_table>tpcc.bmsql_history</group_table>-->
 <!--        </group_cfg>-->
 
-        <group_cfg>
-            <pool>10</pool>
-            <group_table>tpcc.bmsql_district</group_table>
-            <group_table>tpcc.bmsql_stock</group_table>
-            <group_table>tpcc.bmsql_order_line</group_table>
-        </group_cfg>
-        <group_cfg>
-            <pool>10</pool>
-            <group_table>tpcc.bmsql_customer</group_table>
-        </group_cfg>
+<!--        <group_cfg>-->
+<!--            <pool>10</pool>-->
+<!--            <group_table>tpcc.bmsql_district</group_table>-->
+<!--            <group_table>tpcc.bmsql_stock</group_table>-->
+<!--            <group_table>tpcc.bmsql_order_line</group_table>-->
+<!--        </group_cfg>-->
+<!--        <group_cfg>-->
+<!--            <pool>10</pool>-->
+<!--            <group_table>tpcc.bmsql_customer</group_table>-->
+<!--        </group_cfg>-->
 
 <!--            <group_cfg>-->
-<!--                <pool>1</pool>-->
-<!--                <group_table>tpcc.bmsql_customer</group_table>-->
+<!--                <pool>3</pool>-->
+<!--                <group_table>tpcc.bmsql_new_order</group_table>-->
+<!--            </group_cfg>-->
+            <group_cfg>
+                <pool>14</pool>
+                <group_table>tpcc.bmsql_district</group_table>
+                <group_table>tpcc.bmsql_stock</group_table>
+                <group_table>tpcc.bmsql_order_line</group_table>
+                <group_table>tpcc.bmsql_oorder</group_table>
+            </group_cfg>
+<!--            <group_cfg>-->
+<!--                <pool>6</pool>-->
+<!--                <group_table>tpcc.bmsql_warehouse</group_table>-->
+<!--                <group_table>tpcc.bmsql_history</group_table>-->
 <!--            </group_cfg>-->
 
 <!--        <group_cfg>-->

@@ -10,6 +10,7 @@ namespace rpl{
     const uint32_t buffer_size = 100;
     std::atomic<int64_t> max_xid;
     extern uint64_t get_now();
+
     MultiGroupReplayer::MultiGroupReplayer(Rpl_info &rplinfo) {
         trx = 0;
         rplInfo = rplinfo;
@@ -81,7 +82,7 @@ namespace rpl{
             commiter->commit();
         }
         uint64_t en = 0;
-//        auto a = std::thread(&MultiGroupReplayer::delay, this);
+        auto a = std::thread(&MultiGroupReplayer::delay, this);
         do{
             en++;
             auto eb = new event_buffer();
@@ -115,7 +116,7 @@ namespace rpl{
         }
         end_time = get_now();
         stop = true;
-//        a.join();
+        a.join();
         return 0;
     }
 
@@ -447,8 +448,8 @@ namespace rpl{
                 time_t s = get_now();
                 for (auto group : freq[query].query_group){
                     uint64_t t = commiters[group]->trx_cnt;
-//                    while (commiters[group]->trx_cnt - t <= 50000){
-                    while ((commiters[group]->trx_cnt / interval) <= total_query){
+                    while (commiters[group]->trx_cnt - t <= 50000){
+//                    while ((commiters[group]->trx_cnt / interval) <= total_query){
 //                    while (commiters[group]->trx_cnt - last_cnt[group] <= interval){
                         if (stop || total_query >= stop_num){
                             std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
@@ -464,26 +465,34 @@ namespace rpl{
                     }
                 }
                 total_query++;
-//                delay_time[total_query] = get_now() - s + 3000;
-//                total_time += delay_time[total_query];
-                time1 = get_now() - start;
-                time2 = (total_query * 1e6 / freq_);
-                time_t time3 = ((total_query+15) * 1e6 / freq_);
-                if (time1 >= time2 && time1 <= time3)
-                    cnt++;
-                if (time1 >= time2)
-                    delay_time[total_query] = time1 - time2;
-                else
-                {
-                    while (time2 >= time1){
-                        time1 = get_now() - start + 1e4;
-                        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
-                    }
-                    cnt2++;
-//                    cnt++;
-                }
-                delay_time[total_query] += 3000;
+                delay_time[total_query] = get_now() - s + 3000;
                 total_time += delay_time[total_query];
+//                time1 = get_now() - start;
+//                time2 = (total_query * 1e6 / freq_);
+//                time_t time3 = ((total_query+15) * 1e6 / freq_);
+//                if (time1 >= time2 && time1 <= time3)
+//                    cnt++;
+//                if (time1 >= time2)
+//                    delay_time[total_query] = time1 - time2;
+//                else
+//                {
+//                    while (time2 >= time1){
+//                        time1 = get_now() - start + 1e4;
+//                        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+//                    }
+//                    cnt2++;
+////                    cnt++;
+//                }
+//                delay_time[total_query] += 3000;
+//                total_time += delay_time[total_query];
+                if (stop || total_query >= stop_num){
+                    std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
+                    std::cout << cnt << "----" << cnt2 << std::endl;
+                    for (int i = 1; i <= total_query; i++)
+                        file << delay_time[i] / 1e6 << std::endl;
+                    return 0;
+//                            exit(0);
+                }
 ////                for (int j = 0; j < rplInfo.group_num; ++j) {
 ////                    last_cnt[j] = commiters[j]->trx_cnt;
 ////                }

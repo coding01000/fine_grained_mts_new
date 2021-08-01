@@ -6,8 +6,8 @@
 #include "climits"
 namespace rpl{
     uint64_t Commiter::no = 0;
-    struct timeval tv;
     time_t get_now(){
+        struct timeval tv;
         gettimeofday(&tv, NULL);
         return tv.tv_sec * 1000000 + tv.tv_usec;
     }
@@ -82,9 +82,12 @@ namespace rpl{
         file1.open("/root/project/mts_cp/"+name);
         int64_t t1=0, t2=0, t3=0;
         for (int i = 1; i < trx_cnt; ++i) {
-            t1 += trx_times[i].dis_time > trx_times[i].start_time ? trx_times[i].dis_time - trx_times[i].start_time : 10;
-            t2 += trx_times[i].parse_time > trx_times[i].dis_time ? trx_times[i].parse_time - trx_times[i].dis_time : 10;
-            t3 += trx_times[i].finish_time > trx_times[i].parse_time ? trx_times[i].finish_time - trx_times[i].parse_time : 10;
+            t1 += trx_times[i].dis_time - trx_times[i].start_time;
+            t2 += trx_times[i].parse_time - trx_times[i].dis_time;
+            t3 += trx_times[i].finish_time - trx_times[i].parse_time;
+//            t1 += trx_times[i].dis_time > trx_times[i].start_time ? trx_times[i].dis_time - trx_times[i].start_time : 10;
+//            t2 += trx_times[i].parse_time > trx_times[i].dis_time ? trx_times[i].parse_time - trx_times[i].dis_time : 10;
+//            t3 += trx_times[i].finish_time > trx_times[i].parse_time ? trx_times[i].finish_time - trx_times[i].parse_time : 10;
 //            file1 << trx_times[i].parse_time - trx_times[i].start_time << " " << trx_times[i].finish_time - trx_times[i].start_time << std::endl;
         }
         std::cout << name << "-- 分组：" << t1 / trx_cnt << "  parse time: " << t2 / trx_cnt << "  finish time: " << t3 / trx_cnt << std::endl;

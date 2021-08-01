@@ -7,8 +7,8 @@
 
 
 namespace mysql_mts{
-    struct timeval tv;
     time_t get_now(){
+        struct timeval tv;
         gettimeofday(&tv, NULL);
         return tv.tv_sec * 1000000 + tv.tv_usec;
     }
@@ -17,7 +17,9 @@ namespace mysql_mts{
     uint64_t trx;
 
     uint8_t Coordinator::init(Rpl_info &rif) {
-        n = 28;
+        coordinator_time=0;
+        replay_time=0;
+        n = 12;
         trx = 0;
         stop = false;
         memset(delay_time, 0, sizeof(delay_time));
@@ -39,6 +41,30 @@ namespace mysql_mts{
 //            workers[i]->run();
             free_workers.enqueue(i);
         }
+
+        do{
+            auto eb = new rpl::event_buffer();
+            if (eventFetcher->fetch_a_event(eb->buffer, eb->length)){
+                break;
+            }
+            switch ((binary_log::Log_event_type)eb->buffer[EVENT_TYPE_OFFSET]){
+                case binary_log::FORMAT_DESCRIPTION_EVENT:{
+                    binary_log::Format_description_event *fde_tmp = new binary_log::Format_description_event(4, "8.017");
+                    fde = new binary_log::Format_description_event(reinterpret_cast<const char *>(eb->buffer), fde_tmp);
+                    break;
+                }
+                case binary_log::TABLE_MAP_EVENT:{
+                    auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(eb->buffer), fde);
+                    eventHandler->unpack(ev);
+                    delete ev;
+                    break;
+                }
+                default:
+                    break;
+            }
+        }while (true);
+        eventFetcher->init();
+
         return 0;
     }
 
@@ -50,6 +76,8 @@ namespace mysql_mts{
         time_t start = get_now();
 //        std::thread a = std::thread(&Coordinator::delay, this);
 //        uint64_t trx = 0;
+        uint64_t co_start = get_now();
+        uint64_t wait_cnt = 0;
         do{
             auto eb = new rpl::event_buffer();
 //            trx++; //7020112 1119626
@@ -63,6 +91,7 @@ namespace mysql_mts{
                     break;
                 }
                 case binary_log::ANONYMOUS_GTID_LOG_EVENT:{
+//                    co_start = get_now();
                     if (worker)
                     {
                         std::cout<<"error"<<std::endl;
@@ -73,6 +102,7 @@ namespace mysql_mts{
                     sequence_number = event->sequence_number;
                     for (int i = 0; i < n; ++i) {
                         if (workers[i]->in_use && workers[i]->sequence_number <= last_committed){
+                            wait_cnt++;
                             while (workers[i]->in_use){
                                 cv.wait(lock);
                             }
@@ -83,6 +113,8 @@ namespace mysql_mts{
                     worker = workers[now_worker];
                     worker->set_trx(last_committed, sequence_number);
                     worker->in_use = true;
+                    worker->add_job(eb);
+                    worker->cv.notify_all();
 //                    worker->add_job(eb->buffer);
                     break;
                 }
@@ -96,6 +128,9 @@ namespace mysql_mts{
                             (binary_log::Log_event_type)eb->buffer[EVENT_TYPE_OFFSET]==binary_log::ROTATE_EVENT) {
                         trx++;
                         worker = nullptr;
+                        auto tmp = get_now() - co_start;
+                        coordinator_time += tmp;
+                        co_start = get_now();
                     }
                     break;
                 }
@@ -109,8 +144,13 @@ namespace mysql_mts{
             workers[i]->thread.join();
         }
         time_t end_time = get_now();
-        std::cout << (end_time - start)  << std::endl;
-        std::cout << trx << std::endl;
+        std::cout << "time(us): " << (end_time - start)  << std::endl;
+        std::cout << "trx: " << trx << std::endl;
+//        std::cout << "coordinator time（us）: " << coordinator_time/trx << std::endl << "replay time (us) : " << replay_time/trx << std::endl;
+        std::cout << "coordinator time（us）for each trx : " << coordinator_time*1.0/trx << std::endl << "replay time (us) for each trx : " << replay_time*1.0/trx << std::endl;
+        std::cout << "coordinator time（us）: " << coordinator_time << std::endl << "replay time (us) : " << replay_time << std::endl;
+//        std::cout << "coordinator time（s）: " << coordinator_time << "replay time (s) : " << replay_time << std::endl;
+        std::cout << "wait cnt: " << wait_cnt << std::endl;
         stop = true;
 //        a.join();
     }

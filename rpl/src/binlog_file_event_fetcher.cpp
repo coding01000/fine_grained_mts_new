@@ -55,8 +55,8 @@ int Binlog_file_event_fetcher::read_all_to_buffer() {
     }
     return 0;
 }
-struct timeval tv;
 time_t get_now(){
+    struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv.tv_sec * 1000000 + tv.tv_usec;
 }

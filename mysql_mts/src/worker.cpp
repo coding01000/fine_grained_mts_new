@@ -5,6 +5,7 @@
 #include "coordinator.h"
 namespace mysql_mts{
 
+    extern time_t get_now();
     Worker::Worker(Coordinator *c, uint32_t i){
         coordinator = c;
 //        eventHandler = c->eventHandler;
@@ -21,6 +22,7 @@ namespace mysql_mts{
         auto &eventHandler = coordinator->eventHandler;
         auto &fde = coordinator->fde;
         auto &tables = coordinator->tables;
+        uint64_t re_start = get_now();
         while (!stop||jobs.size_approx() > 0){
 //        如果为空 worker进行等待
             while (jobs.size_approx()==0&&!stop){
@@ -39,12 +41,16 @@ namespace mysql_mts{
 //            jobs.pop();
 //            进行解析
             switch ((binary_log::Log_event_type)buffer[EVENT_TYPE_OFFSET]){
-                case binary_log::TABLE_MAP_EVENT:{
-                    auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(buffer), coordinator->fde);
-                    eventHandler->unpack(ev);
-                    delete ev;
+                case binary_log::ANONYMOUS_GTID_LOG_EVENT:{
+                    re_start = get_now();
                     break;
                 }
+//                case binary_log::TABLE_MAP_EVENT:{
+//                    auto *ev = new binary_log::Table_map_event(reinterpret_cast<const char *>(buffer), coordinator->fde);
+//                    eventHandler->unpack(ev);
+//                    delete ev;
+//                    break;
+//                }
                 case binary_log::WRITE_ROWS_EVENT: {
                     auto *ev = new binary_log::Write_rows_event(reinterpret_cast<const char *>(buffer), fde);
                     auto *table_schema = eventHandler->get_schema(ev->get_table_id());
@@ -103,6 +109,8 @@ namespace mysql_mts{
                 case binary_log::XID_EVENT:{
 //                  如果job队列是空的了，就将work的id加入到空闲队列
 //                    while (!jobs.empty())
+                    coordinator->replay_time += get_now() - re_start;
+
                     while (jobs.size_approx() > 0)
                         jobs.try_dequeue(eb);
 //                    if (jobs.empty()){

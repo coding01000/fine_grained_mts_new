@@ -29,6 +29,8 @@ namespace mysql_mts{
         uint64_t group_max_last_sequence_number;
         uint32_t n;
     public:
+        std::atomic<uint64_t> coordinator_time;
+        std::atomic<uint64_t> replay_time;
         std::mutex mu;
         std::condition_variable cv;
         binary_log::Format_description_event *fde;
