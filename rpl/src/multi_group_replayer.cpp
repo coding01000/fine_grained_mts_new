@@ -73,6 +73,7 @@ namespace rpl{
     }
     std::atomic<uint64_t> trx_sum[10];
     std::atomic<uint64_t> trx_size[10];
+    uint64_t sum_size = 0;
     bool stop = false;
     time_t end_time;
     uint8_t MultiGroupReplayer::run() {
@@ -112,17 +113,20 @@ namespace rpl{
         }
         for (int i=0;i<n;i++) {
             commiters[i]->thread.join();
-            std::cout << commiters[i]->name << " - " << commiters[i]->trx_cnt * 1.0 / (commiters[i]->used_time/1e6) << std::endl;
+//            std::cout << commiters[i]->name << " - " << commiters[i]->trx_cnt * 1.0 / (commiters[i]->used_time/1e6) << std::endl;
+            std::cout << commiters[i]->name << " - " << commiters[i]->trx_cnt * 1.0 << std::endl;
         }
         end_time = get_now();
         stop = true;
         a.join();
+        std::cout << "sum size : " << sum_size/1e8 << std::endl;
         return 0;
     }
 
     uint32_t i = 0;
     double delay_time[3000];
     uint8_t MultiGroupReplayer::parallel_process(event_buffer* eb){
+        sum_size += eb->length;
         switch ((binary_log::Log_event_type)eb->buffer[EVENT_TYPE_OFFSET]) {
 //            case binary_log::ANONYMOUS_GTID_LOG_EVENT:{
 //                auto event = new binary_log::Gtid_event(reinterpret_cast<const char *>(eb->buffer),fde);
@@ -428,7 +432,7 @@ namespace rpl{
         int fq = freq[0].ferq;
         int freq_ = 0;
         std::ofstream file;
-        file.open("/root/project/mts_cp/log");
+        file.open("/root/project/mts/log");
         for (const auto &f : freq) {
             freq_ += f.ferq;
             fq = std::__gcd(fq,f.ferq);
@@ -447,62 +451,32 @@ namespace rpl{
             for (const auto &query : query_list) {
                 time_t s = get_now();
                 for (auto group : freq[query].query_group){
-                    uint64_t t = commiters[group]->trx_cnt;
-                    while (commiters[group]->trx_cnt - t <= 50000){
-//                    while ((commiters[group]->trx_cnt / interval) <= total_query){
-//                    while (commiters[group]->trx_cnt - last_cnt[group] <= interval){
-                        if (stop || total_query >= stop_num){
-                            std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
-                            std::cout << cnt << "----" << cnt2 << std::endl;
-                            for (int i = 1; i <= total_query; i++)
-                                file << delay_time[i] / 1e6 << std::endl;
-                            return 0;
-//                            exit(0);
-                        }
-                        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
-//                        if (get_now() - start - (total_query * 1e6 / freq_) > 450000)
-//                            break;
+                    file << commiters[0]->cnt << std::endl;
+                    std::this_thread::sleep_for(std::chrono::microseconds(100000));
+                    if (stop){
+                        return 0;
                     }
-                }
-                total_query++;
-                delay_time[total_query] = get_now() - s + 3000;
-                total_time += delay_time[total_query];
-//                time1 = get_now() - start;
-//                time2 = (total_query * 1e6 / freq_);
-//                time_t time3 = ((total_query+15) * 1e6 / freq_);
-//                if (time1 >= time2 && time1 <= time3)
-//                    cnt++;
-//                if (time1 >= time2)
-//                    delay_time[total_query] = time1 - time2;
-//                else
-//                {
-//                    while (time2 >= time1){
-//                        time1 = get_now() - start + 1e4;
+//                    uint64_t t = commiters[group]->trx_cnt;
+//                    while (commiters[group]->trx_cnt - t <= 50000){
+//                        if (stop || total_query >= stop_num){
+//                            std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
+//                            std::cout << cnt << "----" << cnt2 << std::endl;
+//                            for (int i = 1; i <= total_query; i++)
+//                                file << delay_time[i] / 1e6 << std::endl;
+//                            return 0;
+//                        }
 //                        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
 //                    }
-//                    cnt2++;
-////                    cnt++;
-//                }
-//                delay_time[total_query] += 3000;
-//                total_time += delay_time[total_query];
-                if (stop || total_query >= stop_num){
-                    std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
-                    std::cout << cnt << "----" << cnt2 << std::endl;
-                    for (int i = 1; i <= total_query; i++)
-                        file << delay_time[i] / 1e6 << std::endl;
-                    return 0;
-//                            exit(0);
                 }
-////                for (int j = 0; j < rplInfo.group_num; ++j) {
-////                    last_cnt[j] = commiters[j]->trx_cnt;
-////                }
-////                std::this_thread::sleep_for(std::chrono::microseconds (1000000));
+//                total_query++;
+//                delay_time[total_query] = get_now() - s + 3000;
+//                total_time += delay_time[total_query];
 //                if (stop || total_query >= stop_num){
 //                    std::cout << "delay time: " << total_time * 1.0 / 1e6 / total_query << "s total query: " << total_query << std::endl;
 //                    std::cout << cnt << "----" << cnt2 << std::endl;
 //                    for (int i = 1; i <= total_query; i++)
 //                        file << delay_time[i] / 1e6 << std::endl;
-//                    exit(0);
+//                    return 0;
 //                }
             } // for (const auto &query : query_list)
         } // where true

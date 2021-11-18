@@ -17,9 +17,9 @@
 <!--        </query_ferq>-->
         <query_ferq>
             <freq>700</freq>
-            <query_tables>tpcc.bmsql_district</query_tables>
-            <query_tables>tpcc.bmsql_stock</query_tables>
-            <query_tables>tpcc.bmsql_order_line</query_tables>
+<!--            <query_tables>tpcc.bmsql_district</query_tables>-->
+<!--            <query_tables>tpcc.bmsql_stock</query_tables>-->
+            <query_tables>tpcc.bmsql_customer</query_tables>
             <query_tables>tpcc.bmsql_oorder</query_tables>
         </query_ferq>
     </query_freqs>
@@ -119,22 +119,23 @@
 <!--            <group_table>tpcc.bmsql_stock</group_table>-->
 <!--            <group_table>tpcc.bmsql_order_line</group_table>-->
 <!--        </group_cfg>-->
-<!--        <group_cfg>-->
-<!--            <pool>10</pool>-->
-<!--            <group_table>tpcc.bmsql_customer</group_table>-->
-<!--        </group_cfg>-->
+        <group_cfg>
+            <pool>5</pool>
+            <group_table>tpcc.bmsql_customer</group_table>
+            <group_table>tpcc.bmsql_oorder</group_table>
+        </group_cfg>
 
 <!--            <group_cfg>-->
 <!--                <pool>3</pool>-->
 <!--                <group_table>tpcc.bmsql_new_order</group_table>-->
 <!--            </group_cfg>-->
-            <group_cfg>
-                <pool>14</pool>
-                <group_table>tpcc.bmsql_district</group_table>
-                <group_table>tpcc.bmsql_stock</group_table>
-                <group_table>tpcc.bmsql_order_line</group_table>
-                <group_table>tpcc.bmsql_oorder</group_table>
-            </group_cfg>
+<!--            <group_cfg>-->
+<!--                <pool>9</pool>-->
+<!--                <group_table>tpcc.bmsql_district</group_table>-->
+<!--                <group_table>tpcc.bmsql_stock</group_table>-->
+<!--                <group_table>tpcc.bmsql_order_line</group_table>-->
+<!--                <group_table>tpcc.bmsql_oorder</group_table>-->
+<!--            </group_cfg>-->
 <!--            <group_cfg>-->
 <!--                <pool>6</pool>-->
 <!--                <group_table>tpcc.bmsql_warehouse</group_table>-->

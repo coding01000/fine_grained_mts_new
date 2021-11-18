@@ -36,11 +36,11 @@ namespace rpl{
         time_cnt = 0;
         f = 0;
         idx = 0;
+        cnt = 0;
         int64_t tmp = 0;
 
 //        while ((!commit_shut_down)||(!commit_que.empty())){
         while ((!commit_shut_down)||(trx_cnt < total_trx)){
-            ++cnt;
             ++trx_cnt;
 //            while ((!commit_shut_down)&&commit_que.empty()){
             while ((!commit_shut_down)&&(trx_cnt >= total_trx)){
@@ -62,11 +62,15 @@ namespace rpl{
             }
 
             Trx_rows *trxRows = trx_map[now_xid];
+            bool flag = false;
             for (auto it = trxRows->rows.begin(); it != trxRows->rows.end();it++)
             {
+                flag = true;
                 (*it)->table->insert_row(*it);
                 commit_time = std::max(commit_time, (*it)->event_time);
             }
+            if (!flag)
+                ++cnt;
             trx_times[trx_cnt].finish_time = get_now();
         }
 //        commit_time *= 2;
