@@ -11,7 +11,7 @@ yum install mysql-devel
 
 Here is an example on how to use it.
 
-First, fill in the directory of your installation with the addresses of mysql-devel and boost in the CMakeLists.txt file.
+First, fill in the directory of your installation with the addresses of mysql-devel and boost in the CMakeLists.txt.
 
 ```cmake
 set(BOOST_ROOT "/usr/include/boost")
@@ -40,7 +40,7 @@ Specify the ip address, port number, user name and password of the database in t
 </master_info>
 ```
 
-Set which tables and the number of threads for each group in the configuration file rpl_cfg.xml, the address of the binlog file can be specified in the case of offline, and the real-time synchronization depends on the setting of the file master_cfg.xml.
+Set which tables and the number of threads for each group in the configuration file rpl_cfg.xml, the address of the binlog file can be specified in the case of offline, and the real-time synchronization depends on the setting of master_cfg.xml.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8" ?>
