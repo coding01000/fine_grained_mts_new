@@ -1,4 +1,4 @@
-#install
+# install
 The project uses [Boost](https://www.boost.org/) and mysql-devel. Go check them out if you don't have them locally installed.
 
 Here we give the way to install boost and mysql-devel in centos。
@@ -7,7 +7,7 @@ yum install boost
 yum install boost-devel
 yum install mysql-devel
 ```
-#Introduction
+# Introduction
 
 Here is an example on how to use it.
 
@@ -93,7 +93,7 @@ After configuration, you can directly execute group_base_log_replay for repaly.
 ./group_base_log_replay
 ```
 
-#Directory description
+# Directory description
 
 binlog, event_unpack -- Parsing logs.
 
