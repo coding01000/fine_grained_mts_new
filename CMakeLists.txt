@@ -51,7 +51,7 @@ ADD_EXECUTABLE(fine_grained_mts test.cc)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
-TARGET_LINK_LIBRARIES(fine_grained_mts
+TARGET_LINK_LIBRARIES(group_base_log_replay
         mysql_rpl_lib
         rpl_lib
         event_unpack_lib
