@@ -104,3 +104,7 @@ mysql_mts -- Replay method of mysql8.
 rpl -- Replay method of group_base_log_replay
 
 thread_pool -- Manage thread pool.
+
+# Note
+
+Whether this project is offline or real-time replay, the master node must be accessible, because the schema information of the table needs to be obtained from the master node.
