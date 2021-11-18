@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.2)
 set(CMAKE_CXX_STANDARD 14)
 
-PROJECT(fine_grained_mts)
+PROJECT(group_base_log_replay)
 
 #set(BOOST_ROOT "/usr/local/mysql-8.0.11/boost/boost_1_66_0")
 #set(BOOST_LIBRARYDIR "/usr/lib64")
@@ -47,7 +47,7 @@ ADD_SUBDIRECTORY(./rpl)
 ADD_SUBDIRECTORY(./thread_pool)
 ADD_SUBDIRECTORY(./mysql_mts)
 
-ADD_EXECUTABLE(fine_grained_mts test.cc)
+ADD_EXECUTABLE(group_base_log_replay test.cc)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
